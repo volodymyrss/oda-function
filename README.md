@@ -21,6 +21,8 @@
     * ossr
     * workflowhub
     * dda catalogs
+    * zenodo general
+    * catalog sync and store
 
 * function descriptions
     * oda notebooks
