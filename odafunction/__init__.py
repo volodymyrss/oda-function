@@ -97,9 +97,13 @@ class AnyExecutor(Executor):
 
 
 def default_execute_to_local_value(f):
+    # only transform 0-function to local value
     if isinstance(f, Function):
         logger.info("default_execute: %s", f)
-        return AnyExecutor()(f, LocalValue).value
+        if f.signature == inspect.Signature():
+            return AnyExecutor()(f, LocalValue).value
+        else:
+            return f
     else:
         return f
 

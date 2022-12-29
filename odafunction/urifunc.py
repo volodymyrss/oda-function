@@ -4,9 +4,10 @@
 
 import importlib
 import tempfile
-from . import LocalPythonFunction
+from . import LocalPythonFunction, Function
 
 import re
+import inspect
 import logging
 import requests
 
@@ -40,7 +41,8 @@ class URIPythonFunction(LocalPythonFunction):
 
         elif self.schema in ["http", "https"]:
             with tempfile.NamedTemporaryFile(suffix=".py") as f:
-                f.write(requests.get(f"{self.schema}://{self.path}").content)
+                self.content = requests.get(f"{self.schema}://{self.path}").content
+                f.write(self.content)
                 f.flush()
                 self.load_func_from_local_file(f.name)
 
@@ -50,3 +52,20 @@ class URIPythonFunction(LocalPythonFunction):
 
     def __repr__(self) -> str:
         return super().__repr__() + f":[{self.uri}]"
+
+
+class TransformURIFunction(LocalPythonFunction):
+    def __init__(self, provenance=None) -> None:
+        super().__init__(self.local_python_function, provenance)
+
+    @staticmethod
+    def local_python_function(from_func: URIPythonFunction, to_type: type, new_loc: str):
+        r = re.match("(?P<schema>(http|https|file))://(?P<path>.*)", new_loc)
+        assert r.group('schema') == 'file'
+
+        with open(r.group('path'), "wb") as f:        
+            f.write(from_func.content)
+
+        logger.info("storing function to %s", r.group('path'))
+        
+        return to_type(new_loc + "::" + from_func.funcname)

@@ -2,7 +2,7 @@ import pytest
 
 from odafunction import LocalPythonFunction, LocalValue, LocalExecutor, AnyExecutor, default_execute_to_local_value
 from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
-from odafunction.urifunc import URIPythonFunction
+from odafunction.urifunc import URIPythonFunction, TransformURIFunction
 
 def test_local_function():
     
@@ -74,5 +74,26 @@ def test_http():
     assert '115900920010.001' in v
 
 
-def test_higher_order_function():    
-    pass
+def test_store_function():
+    f = URIPythonFunction("https://raw.githubusercontent.com/oda-hub/oda_test_kit/master/odaplatform.py::platform_endpoint")
+    
+    T = TransformURIFunction()(f, URIPythonFunction, "file://./func.py")
+
+    print(T)
+
+    g = default_execute_to_local_value(T)
+
+    print(f)
+    print(g)
+
+    assert default_execute_to_local_value(f("production")) == default_execute_to_local_value(g("production"))
+    
+
+
+def test_transforming_function():
+    f = LocalPythonFunction(lambda x:x+1)
+
+    f_t = LocalPythonFunction(lambda y: str(y))
+
+    #TODO
+    #...
