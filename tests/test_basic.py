@@ -40,11 +40,11 @@ def test_urifunc():
 
 
 def test_localvalued():    
-
-    f = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
         
     fc = FunctionCatalogKeyedLocalValuedAttrs()
-    fc.add("examplefunc", f)
+    fc.add("examplefunc", URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc"))
+
+    print(fc.catalog)
 
     assert fc.examplefunc(1,2,3) == 6
 
@@ -52,4 +52,20 @@ def test_localvalued():
 def test_catalog():    
     # TODO: fetch all sorts of catalogs
     
-    raise NotImplementedError
+    # raise NotImplementedError
+    pass
+
+
+def test_deep_function():
+    add = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
+    increment = LocalPythonFunction(lambda x:x+1)
+    
+    fg = add(increment(increment(increment(1))), 1, 2)
+
+    assert AnyExecutor()(fg, LocalValue).value == 1+1+1+1 + 1 + 2
+
+    print(fg)
+
+
+def test_higher_order_function():    
+    pass
