@@ -47,3 +47,9 @@ def test_localvalued():
     fc.add("examplefunc", f)
 
     assert fc.examplefunc(1,2,3) == 6
+
+
+def test_catalog():    
+    # TODO: fetch all sorts of catalogs
+    
+    raise NotImplementedError
