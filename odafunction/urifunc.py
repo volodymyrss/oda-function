@@ -3,11 +3,15 @@
 # 
 
 import importlib
+import tempfile
 from . import LocalPythonFunction
 
 import re
-import inspect
+import logging
+import requests
 
+
+logger = logging.getLogger(__name__)
 
 class URIPythonFunction(LocalPythonFunction):
     def __init__(self, uri) -> None:
@@ -23,13 +27,25 @@ class URIPythonFunction(LocalPythonFunction):
             self.load_func()
 
 
+    def load_func_from_local_file(self, path):
+        logger.info("loading from %s", path)
+        spec = importlib.util.spec_from_file_location("testmod", path)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        self.local_python_function = getattr(module, self.funcname)
 
     def load_func(self):
         if self.schema == "file":
-            spec = importlib.util.spec_from_file_location("testmod", self.path)
-            module = importlib.util.module_from_spec(spec)
-            spec.loader.exec_module(module)
-            self.local_python_function = getattr(module, self.funcname)
+            self.load_func_from_local_file(self.path)
+
+        elif self.schema in ["http", "https"]:
+            with tempfile.NamedTemporaryFile(suffix=".py") as f:
+                f.write(requests.get(f"{self.schema}://{self.path}").content)
+                f.flush()
+                self.load_func_from_local_file(f.name)
+
+        else:
+            raise NotImplementedError
 
 
     def __repr__(self) -> str:

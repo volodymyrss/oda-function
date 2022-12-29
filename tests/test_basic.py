@@ -1,6 +1,6 @@
 import pytest
 
-from odafunction import LocalPythonFunction, LocalValue, LocalExecutor, AnyExecutor
+from odafunction import LocalPythonFunction, LocalValue, LocalExecutor, AnyExecutor, default_execute_to_local_value
 from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
 from odafunction.urifunc import URIPythonFunction
 
@@ -65,6 +65,13 @@ def test_deep_function():
     assert AnyExecutor()(fg, LocalValue).value == 1+1+1+1 + 1 + 2
 
     print(fg)
+
+
+def test_http():
+    f = URIPythonFunction("https://raw.githubusercontent.com/oda-hub/oda_test_kit/master/test_image.py::get_scw_list")
+    v = default_execute_to_local_value(f(ra_obj=82, dec_obj=22, radius=5, start_date="2011-11-11T11:11:11", end_date="2012-11-11T11:11:11"))
+    assert len(v) == 149
+    assert '115900920010.001' in v
 
 
 def test_higher_order_function():    
