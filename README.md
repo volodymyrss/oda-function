@@ -41,5 +41,6 @@
 
 ## Used by
 
+* ddpapers
 * oda notebook generation for renku
 * oda-experiments
