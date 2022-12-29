@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "oda-function"
+name = "odafunction"
 version = "0.1.0"
 description = ""
 authors = ["Volodymyr Savchenko <contact@volodymyrsavchenko.com>"]
