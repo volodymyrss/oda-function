@@ -4,4 +4,5 @@ import rdflib
 
 class SemanticCatalog(FunctionCatalog):
     def find(self, constrains: str):
-        # TODO: search by result
+        # TODO: search by match
+        pass
