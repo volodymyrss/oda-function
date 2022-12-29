@@ -61,6 +61,13 @@ class AnyExecutor(Executor):
                                  cls, func, spec.annotations['func'], result_type, spec.annotations.get('return'))
         raise RuntimeError("all executors gave up")
 
+
+class LocalValuedFunction(Function):
+    def __call__(self, *args: Any, **kwds: Any):
+        f0 = super().__call__(*args, **kwds)
+        return AnyExecutor()(f0, LocalValue).value
+
+
 # 
 # local python
 # 

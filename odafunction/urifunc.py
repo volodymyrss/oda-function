@@ -32,14 +32,5 @@ class URIPythonFunction(LocalPythonFunction):
             self.local_python_function = getattr(module, self.funcname)
 
 
-    @property
-    def signature(self):
-        return inspect.signature(self.local_python_function)
-
-
-    # def __call__(self, *args: Any, **kwds: Any):
-    #     ba = self.signature.bind(*args, **kwds)
-    #     return LocalPythonFunction(lambda: self.local_python_function(*ba.args, **ba.kwargs))
-
     def __repr__(self) -> str:
         return super().__repr__() + f":[{self.uri}]"

@@ -1,6 +1,7 @@
 import pytest
 
 from odafunction import LocalPythonFunction, LocalValue, LocalExecutor, AnyExecutor
+from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
 from odafunction.urifunc import URIPythonFunction
 
 def test_local_function():
@@ -36,3 +37,13 @@ def test_urifunc():
     f = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
         
     assert AnyExecutor()(f(1, 2, 3), LocalValue).value == 6
+
+
+def test_localvalued():    
+
+    f = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
+        
+    fc = FunctionCatalogKeyedLocalValuedAttrs()
+    fc.add("examplefunc", f)
+
+    assert fc.examplefunc(1,2,3) == 6
