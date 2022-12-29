@@ -1,8 +1,9 @@
 import pytest
 
-def test_function():
-    from odafunction import LocalPythonFunction, LocalValue, LocalExecutor
+from odafunction import LocalPythonFunction, LocalValue, LocalExecutor, AnyExecutor
+from odafunction.urifunc import URIPythonFunction
 
+def test_local_function():
     
     f = LocalPythonFunction(lambda x, y, z=1:(x+y+z))
 
@@ -19,3 +20,19 @@ def test_function():
 
     assert isinstance(lv, LocalValue)
     assert lv.value == 6
+
+
+# def test_http_function():
+#     pass
+
+
+def test_any_executor():
+    f = LocalPythonFunction(lambda x, y, z=1:(x+y+z))
+
+    assert AnyExecutor()(f(1, 2, 3), LocalValue).value == 6
+
+
+def test_urifunc():
+    f = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
+        
+    assert AnyExecutor()(f(1, 2, 3), LocalValue).value == 6

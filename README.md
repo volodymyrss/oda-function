@@ -25,9 +25,12 @@
 * function descriptions
     * oda notebooks
     * python functions
+    * http python functions
+    * uri from rdf
     * containers
     * cwl
-    * fno:
+    * fno
+    * module-function
 
 * executors
     * local

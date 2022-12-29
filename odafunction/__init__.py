@@ -1,5 +1,12 @@
 from typing import Any, List
 import inspect
+import typing
+
+import logging
+
+# sometimes, as the progress is made, code develops its own autonomous logic. it's reconciliation, harmony, and creation
+
+rdf_prefix = "<http://odahub.io/ontology/odafunction#>"
 
 
 class Function:
@@ -32,9 +39,30 @@ class Executor:
     def __call__(self, func: Function, result_type: type) -> Function:
         return func
 
+    def __repr__(self) -> str:
+        return f"[{self.__class__.__name__}: {inspect.signature(self.__call__)}]"
+
+
+class AnyExecutor(Executor):
+    def __call__(self, func: Function, result_type: type) -> Function:
+        for cls in Executor.__subclasses__():
+            if cls != self.__class__:
+                spec = inspect.getfullargspec(cls.__call__)
+                logging.info("executor %s spec %s", cls, spec)
+                if isinstance(func, spec.annotations['func']) and issubclass(result_type, spec.annotations.get('return')):
+                    logging.info("executor %s fits", cls)
+                    # TODO: not only first!
+                    if 'result_type' in spec.annotations:                        
+                        return cls()(func, result_type)
+                    else:
+                        return cls()(func)
+                else:
+                    logging.info("executor %s does not fit: %s vs %s; %s vs %s", 
+                                 cls, func, spec.annotations['func'], result_type, spec.annotations.get('return'))
+        raise RuntimeError("all executors gave up")
 
 # 
-# .....
+# local python
 # 
 
 class LocalPythonFunction(Function):
@@ -68,3 +96,5 @@ class LocalExecutor(Executor):
             raise RuntimeError(f"found non-0 signature: {func.signature}, please reduced function arguments before passing it to executors")
 
         return LocalValue(func.local_python_function())
+
+
