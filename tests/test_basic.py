@@ -78,7 +78,7 @@ def test_http():
 def test_store_function():
     f = URIPythonFunction("https://raw.githubusercontent.com/oda-hub/oda_test_kit/master/odaplatform.py::platform_endpoint")
     
-    T = TransformURIFunction()(f, URIPythonFunction, "file://./func.py")
+    T = TransformURIFunction()(f, URIPythonFunction, "file:///tmp/func.py")
 
     print(T)
 
