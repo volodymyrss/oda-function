@@ -5,6 +5,7 @@
 import hashlib
 import importlib.util
 import tempfile
+from nb2workflow.nbadapter import NotebookAdapter
 from .. import LocalPythonFunction, Function
 
 import re
@@ -14,19 +15,32 @@ import requests
 
 logger = logging.getLogger(__name__)
 
-class URIPythonFunction(LocalPythonFunction):
+
+class URIFunction(Function):
     def __init__(self, uri) -> None:
         self.uri = uri
 
-        r = re.match("(?P<schema>(http|https|file))://(?P<path>.*)::(?P<funcname>.*)", uri)
-        if r is None:
-            RuntimeError(f"URI {uri} does not look right")
+        r = re.match(r"((?P<modifier>(ipynb|py))\+)?(?P<schema>(http|https|file))://(?P<path>.*)(::(?P<funcname>.*))?", uri)
+        if r is None:            
+            raise RuntimeError(f"URI {uri} does not look right")
         else:
+            logger.info("parsed uri %s as %s", uri, r)
+            self.modifier = r.group('modifier')
             self.schema = r.group('schema')
             self.path = r.group('path')
             self.funcname = r.group('funcname')
             self.load_func()
 
+
+    def load_func(self):
+        raise NotImplementedError
+
+
+class URIPythonFunction(URIFunction, LocalPythonFunction):
+    suffix = "py"
+
+    def __init__(self, uri) -> None:
+        URIFunction.__init__(self, uri)
 
     def load_func_from_local_file(self, path):
         logger.info("loading from %s", path)
@@ -46,12 +60,12 @@ class URIPythonFunction(LocalPythonFunction):
                 self.local_python_function = getattr(module, self.funcname)
                 
 
-    def load_func(self):
+    def load_func(self):        
         if self.schema == "file":
             self.load_func_from_local_file(self.path)
 
         elif self.schema in ["http", "https"]:
-            with tempfile.NamedTemporaryFile(suffix=".py") as f:
+            with tempfile.NamedTemporaryFile(suffix="." + self.suffix) as f:
                 self.content = requests.get(f"{self.schema}://{self.path}").content
                 f.write(self.content)
                 f.flush()
@@ -63,6 +77,19 @@ class URIPythonFunction(LocalPythonFunction):
 
     def __repr__(self) -> str:
         return super().__repr__() + f":[{self.uri}]"
+
+
+
+class URIipynbFunction(URIPythonFunction):
+    suffix = "ipynb"
+
+    def load_func_from_local_file(self, path):
+        def local_python_function():
+            nba = NotebookAdapter(path)
+            nba.execute({})
+            return nba.extract_output()
+
+        self.local_python_function = local_python_function
 
 
 class TransformURIFunction(LocalPythonFunction):

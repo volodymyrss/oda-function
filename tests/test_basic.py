@@ -3,7 +3,7 @@ import pytest
 from odafunction import LocalPythonFunction, LocalValue
 from odafunction.executors import LocalExecutor, AnyExecutor, default_execute_to_local_value
 from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
-from odafunction.func.urifunc import URIPythonFunction, TransformURIFunction
+from odafunction.func.urifunc import URIPythonFunction, TransformURIFunction, URIipynbFunction
 
 def test_local_function():
     
@@ -115,4 +115,23 @@ def test_cache():
     f.cached = True
 
     v = AnyExecutor(lambda ex: getattr(ex, 'caching', False))(f, LocalValue)
+    
+
+def test_uri_modifiers():
+    assert default_execute_to_local_value(URIPythonFunction("py+file://tests/test_data/filewithfunc.py::examplefunc")(1,2,3)) == 6
+
+
+def test_ipynb():
+    f = URIipynbFunction("ipynb+file://tests/test_data/func.ipynb")
+    
+    print("f:", f)
+
+    assert f.modifier == 'ipynb'
+    assert f.schema == 'file'
+
+    v = default_execute_to_local_value(f(), cached=True)
+    print("v:", v)
+
+    assert v['y'] == 2
+    # assert default_execute_to_local_value() == 6
     
