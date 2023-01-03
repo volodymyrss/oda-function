@@ -2,7 +2,7 @@ import pytest
 
 from odafunction import LocalPythonFunction, LocalValue, LocalExecutor, AnyExecutor, default_execute_to_local_value
 from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
-from odafunction.urifunc import URIPythonFunction, TransformURIFunction
+from odafunction.func.urifunc import URIPythonFunction, TransformURIFunction
 
 def test_local_function():
     

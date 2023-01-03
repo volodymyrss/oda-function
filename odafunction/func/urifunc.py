@@ -2,12 +2,12 @@
 # remote python function, retrievable by file://, http://, with :: function in it
 # 
 
-import importlib
+import hashlib
+import importlib.util
 import tempfile
-from . import LocalPythonFunction, Function
+from .. import LocalPythonFunction, Function
 
 import re
-import inspect
 import logging
 import requests
 
@@ -30,10 +30,20 @@ class URIPythonFunction(LocalPythonFunction):
 
     def load_func_from_local_file(self, path):
         logger.info("loading from %s", path)
-        spec = importlib.util.spec_from_file_location("testmod", path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        self.local_python_function = getattr(module, self.funcname)
+
+        # TODO: does module name cause collisions?
+        spec = importlib.util.spec_from_file_location("mod" + hashlib.md5(path.encode()).hexdigest()[:8], path)
+
+        if spec is None:
+            raise RuntimeError(f"unable to load module from {path}")
+        else:
+            module = importlib.util.module_from_spec(spec)
+
+            if spec.loader is None:
+                raise RuntimeError(f"spec.loader is None for {path}")
+            else:
+                spec.loader.exec_module(module)
+                self.local_python_function = getattr(module, self.funcname)
 
     def load_func(self):
         if self.schema == "file":
@@ -61,11 +71,15 @@ class TransformURIFunction(LocalPythonFunction):
     @staticmethod
     def local_python_function(from_func: URIPythonFunction, to_type: type, new_loc: str):
         r = re.match("(?P<schema>(http|https|file))://(?P<path>.*)", new_loc)
-        assert r.group('schema') == 'file'
 
-        with open(r.group('path'), "wb") as f:        
-            f.write(from_func.content)
+        if r is None:
+            raise RuntimeError(f"can not load this, unknown pattern: {new_loc}")
+        else:
+            assert r.group('schema') == 'file'
 
-        logger.info("storing function to %s", r.group('path'))
-        
-        return to_type(new_loc + "::" + from_func.funcname)
+            with open(r.group('path'), "wb") as f:        
+                f.write(from_func.content)
+
+            logger.info("storing function to %s", r.group('path'))
+            
+            return to_type(new_loc + "::" + from_func.funcname)

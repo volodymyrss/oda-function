@@ -1,6 +1,6 @@
 # ODA functions
 
-## Purpose
+## What do it do?
 
 * Find functions from different sources
 * Find suggestions for functions fitting purpose
@@ -9,35 +9,42 @@
 
 ## Is this yet another workflow/function catalog
 
+There are many workflow definitions and function catalogs. We do not need another one.
+Which is why here there is no new standard for functions or catalogs: it is not possible to add functions to ODA itself.
+
+Instead, this is a **homogeneous interface to existing function and catalog standards**.
+
 ## Workflow vs Function
 
 ## Features
 
 * catalogs
-    * oda notebooks from renkulab, github, gitlab
-    * oda kg
-    * published ld fragments
-    * oda function collections for oda-experiments
-    * ossr
-    * workflowhub
-    * dda catalogs
-    * zenodo general
-    * catalog sync and store
+    * locally constructed
+    * TODO: oda notebooks from renkulab, github, gitlab
+    * TODO: oda kg
+    * TODO: published ld fragments
+    * TODO: oda function collections for oda-experiments
+    * TODO: ossr
+    * TODO: workflowhub
+    * TODO: dda catalogs
+    * TODO: zenodo general
+    * TODO: catalog sync and store
 
 * function descriptions
-    * oda notebooks
-    * python functions
-    * http python functions
-    * uri from rdf
-    * containers
-    * cwl
-    * fno
-    * module-function
+    * python functions in the local code
+    * python functions in files, from local path or http
+    * TODO: api functions
+    * TODO: oda notebooks
+    * TODO: uri from rdf
+    * TODO: containers
+    * TODO: cwl
+    * TODO: fno
+    * TODO: module-function
 
 * executors
     * local
-    * reana
-    * execution planner
+    * TODO: reana
+    * TODO: execution planner
 
 
 * safety and performance
