@@ -7,6 +7,7 @@ import importlib.util
 import tempfile
 from nb2workflow.nbadapter import NotebookAdapter
 from .. import LocalPythonFunction, Function
+from ..utils import iterate_subclasses
 
 import re
 import logging
@@ -31,6 +32,16 @@ class URIFunction(Function):
             self.funcname = r.group('funcname')
             self.load_func()
 
+    @staticmethod
+    def from_uri(uri):
+        for cls in iterate_subclasses(URIFunction):
+            try:
+                # TODO: not only first!
+                return cls(uri)
+            except RuntimeError as e:
+                logger.info("can not parse %s as %s", uri, cls)
+        
+        raise RuntimeError(f"unable to parse URI {uri}")
 
     def load_func(self):
         raise NotImplementedError
