@@ -44,6 +44,7 @@ class URIPythonFunction(LocalPythonFunction):
             else:
                 spec.loader.exec_module(module)
                 self.local_python_function = getattr(module, self.funcname)
+                
 
     def load_func(self):
         if self.schema == "file":

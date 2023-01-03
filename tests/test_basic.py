@@ -1,6 +1,7 @@
 import pytest
 
-from odafunction import LocalPythonFunction, LocalValue, LocalExecutor, AnyExecutor, default_execute_to_local_value
+from odafunction import LocalPythonFunction, LocalValue
+from odafunction.executors import LocalExecutor, AnyExecutor, default_execute_to_local_value
 from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
 from odafunction.func.urifunc import URIPythonFunction, TransformURIFunction
 
@@ -97,3 +98,13 @@ def test_transforming_function():
 
     #TODO
     #...
+
+
+def test_dumps():
+    from odafunction import LocalValue
+
+    v = LocalValue(123)
+
+    assert v.dumps() == '{"value": 123, "class": "LocalValue"}'
+
+    assert LocalValue.from_s(v.dumps()).value == 123

@@ -1,3 +1,4 @@
+import json
 from typing import Any, List
 import inspect
 import typing
@@ -20,7 +21,7 @@ class Function:
     def provenance(self):
         return getattr(self, '_provenance', None)
 
-    # this is not call but argument substitution. only 0-functions can be executed by the executor
+    # this is not call but argument substitution. only nullary functions can be executed by the executor
     def __call__(self, *args: Any, **kwds: Any):
         pass    
 
@@ -56,8 +57,8 @@ class FunctionCatalog:
 
 
 class Executor:
-    # executor transforms 0-function to another 0-function
-    # typically, execution transforms "data" to other "data", but both of these "data" can only be fetched with a request (i.e. another 0-function)
+    # executor transforms nullary function to another nullary function
+    # typically, execution transforms "data" to other "data", but both of these "data" can only be fetched with a request (i.e. another nullary function)
     def __call__(self, func: Function, result_type: type) -> Function:
         return func
 
@@ -68,44 +69,11 @@ class Executor:
         return f"[{self.__class__.__name__}: {inspect.signature(self.__call__)}]"
 
 
-class AnyExecutor(Executor):
-    def __call__(self, func: Function, result_type: type) -> Function:
-        for cls in Executor.__subclasses__():
-            if cls != self.__class__:
-                spec = inspect.getfullargspec(cls.__call__)
-                logging.info("executor %s spec %s", cls, spec)
-
-                if not isinstance(func, spec.annotations['func']):
-                    logging.info("executor %s does not fit: func: %s but executor annotation is %s", cls, func, spec.annotations['func'])
-                elif not issubclass(result_type, spec.annotations.get('return')):
-                    logging.info("executor %s does not fit: func result type %s but executor annotation %s", cls, result_type, spec.annotations.get('return'))
-                else:
-                    logging.info("executor fits!")
-                    # TODO: not only first!
-                    if 'result_type' in spec.annotations:                        
-                        return cls()(func, result_type)
-                    else:
-                        return cls()(func)
-                
-        raise RuntimeError("all executors gave up")
-
-
 
 # 
 # local python
 # 
 
-
-def default_execute_to_local_value(f):
-    # only transform 0-function to local value
-    if isinstance(f, Function):
-        logger.info("default_execute: %s", f)
-        if f.signature == inspect.Signature():
-            return AnyExecutor()(f, LocalValue).value
-        else:
-            return f
-    else:
-        return f
 
 class LocalPythonFunction(Function):
     def __init__(self, local_python_function, provenance=None) -> None:
@@ -122,6 +90,7 @@ class LocalPythonFunction(Function):
 
         def f():
             # TODO: these assumptions about executor are not universal
+            from odafunction.executors import default_execute_to_local_value
             args = [default_execute_to_local_value(a) for a in ba.args]
             kwargs = {k: default_execute_to_local_value(v) for k, v in ba.kwargs.items()}
             return self.local_python_function(*args, **kwargs)
@@ -138,20 +107,13 @@ class LocalValue(Function):
     def value(self):
         return self._value
 
-
     def __repr__(self) -> str:
         return super().__repr__() + f"[value: {self.value}]"
 
+    def dumps(self):
+        return json.dumps({'value': self.value, 'class': self.__class__.__name__})
 
-class LocalExecutor(Executor):
-    def __call__(self, func: LocalPythonFunction) -> Function:
-        if func.signature != inspect.Signature():
-            raise RuntimeError(f"found non-0 signature: {func.signature}, please reduced function arguments before passing it to executors")
-        
-        r = LocalValue(func.local_python_function())
-
-        self.note_execution(func, r)
-
-        return r
-
+    @classmethod    
+    def from_s(cls, s):
+        return cls(json.loads(s)['value'])
 

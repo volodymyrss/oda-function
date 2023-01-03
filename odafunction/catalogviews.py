@@ -1,4 +1,5 @@
-from . import FunctionCatalog, Function, AnyExecutor, LocalValue
+from . import FunctionCatalog, Function, LocalValue
+from .executors import AnyExecutor
 
 
 class FunctionCatalogKeyedLocalValued(FunctionCatalog):
