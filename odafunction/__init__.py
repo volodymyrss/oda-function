@@ -13,6 +13,7 @@ rdf_prefix = "<http://odahub.io/ontology/odafunction#>"
 
 
 class Function:
+    cached = False
 
     def __init__(self, provenance=None) -> None:
         self._provenance = provenance
@@ -78,7 +79,7 @@ class Executor:
 class LocalPythonFunction(Function):
     def __init__(self, local_python_function, provenance=None) -> None:
         self.local_python_function = local_python_function
-        super().__init__(provenance=provenance)
+        super().__init__(provenance=provenance)    
 
     @property
     def signature(self):
@@ -99,6 +100,8 @@ class LocalPythonFunction(Function):
 
 
 class LocalValue(Function):
+    cached = True
+
     # a particular, largely artificial, kind of function is the one whos value can be retrieved locally
     def __init__(self, value) -> None:        
         self._value = value

@@ -11,7 +11,7 @@ from .. import LocalValue, LocalPythonFunction, Function, Executor
 logger = logging.getLogger(__name__)
 
 class LocalExecutor(Executor):
-    def __call__(self, func: LocalPythonFunction) -> Function:
+    def __call__(self, func: LocalPythonFunction) -> LocalValue:
         if func.signature != inspect.Signature():
             raise RuntimeError(f"found non-0 signature: {func.signature}, please reduced function arguments before passing it to executors")
         
@@ -27,24 +27,29 @@ class LocalCachingExecutor(LocalExecutor):
 
     def cache_path(self, func):
         uid = hashlib.md5(str(func._provenance).encode()).hexdigest()[:8]
+        logger.info('uid %s from provenance %s', uid, func._provenance)
         return pathlib.Path(os.getenv('HOME', './')) / f".cache/odafunction/{uid}.json"
 
-    def __call__(self, func: LocalPythonFunction) -> Function:
-        cp = self.cache_path(func)
 
-        try:
-            with open(cp) as f:
-                r = LocalValue.from_f(f)
+    def __call__(self, func: LocalPythonFunction) -> LocalValue:
+        if func.cached:
+            cp = self.cache_path(func)
 
-            logger.info("loaded from cache %s: %s", cp, r)
-        except Exception as e:
-            logger.info("can not load from cache %s: %s", cp, e)
-            r = super().__call__(func)                        
+            try:
+                with open(cp) as f:
+                    r = LocalValue.from_f(f)
 
-            cp.parent.mkdir(parents=True, exist_ok=True)
-            with open(cp, "w") as f:
-                f.write(r.dumps())
-            logger.info("stored to cache %s, %s", cp, r)
+                logger.info("loaded from cache %s: %s", cp, r)
+            except Exception as e:
+                logger.info("can not load from cache %s: %s", cp, e)
+                r = super().__call__(func)
+
+                cp.parent.mkdir(parents=True, exist_ok=True)
+                with open(cp, "w") as f:
+                    f.write(r.dumps())
+                logger.info("stored to cache %s, %s", cp, r)
+        else:
+            r = super().__call__(func)
         
         return r
 
@@ -71,16 +76,16 @@ class AnyExecutor(Executor):
         for cls in iterate_subclasses(Executor):
             if cls != self.__class__:
                 spec = inspect.getfullargspec(cls.__call__)
-                logging.info("executor %s spec %s", cls, spec)
+                logging.info("for func %s result_type %s executor %s spec %s", func, result_type, cls, spec)
 
                 if not isinstance(func, spec.annotations['func']):
                     logging.info("executor %s does not fit: func: %s but executor annotation is %s", cls, func, spec.annotations['func'])
-                elif not issubclass(result_type, spec.annotations.get('return')):
+                elif not issubclass(spec.annotations.get('return'), result_type):
                     logging.info("executor %s does not fit: func result type %s but executor annotation %s", cls, result_type, spec.annotations.get('return'))
                 elif not self._executor_selector(cls):
                     logging.info("executor %s rejected by the executor filter", cls)
                 else:
-                    logging.info("executor fits!")
+                    logging.info("executor %s fits!", cls)
 
                     # TODO: not only first!
                     if 'result_type' in spec.annotations:                        
