@@ -117,3 +117,7 @@ class LocalValue(Function):
     def from_s(cls, s):
         return cls(json.loads(s)['value'])
 
+    @classmethod    
+    def from_f(cls, f):
+        return cls(json.load(f)['value'])
+

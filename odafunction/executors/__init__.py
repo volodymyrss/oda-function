@@ -1,5 +1,9 @@
+import hashlib
 import inspect
+import json
 import logging
+import os
+import pathlib
 
 from .. import LocalValue, LocalPythonFunction, Function, Executor
 
@@ -19,11 +23,40 @@ class LocalExecutor(Executor):
 
 
 class LocalCachingExecutor(LocalExecutor):
+    caching = True
+
+    def cache_path(self, func):
+        uid = hashlib.md5(str(func._provenance).encode()).hexdigest()[:8]
+        return pathlib.Path(os.getenv('HOME', './')) / f".cache/odafunction/{uid}.json"
+
     def __call__(self, func: LocalPythonFunction) -> Function:
-        r = super().__call__(func)
+        cp = self.cache_path(func)
+
+        try:
+            with open(cp) as f:
+                r = LocalValue.from_f(f)
+
+            logger.info("loaded from cache %s: %s", cp, r)
+        except Exception as e:
+            logger.info("can not load from cache %s: %s", cp, e)
+            r = super().__call__(func)                        
+
+            cp.parent.mkdir(parents=True, exist_ok=True)
+            with open(cp, "w") as f:
+                f.write(r.dumps())
+            logger.info("stored to cache %s, %s", cp, r)
+        
         return r
 
 
+
+def iterate_subclasses(cls):
+    yield cls
+
+    for c in cls.__subclasses__():
+        yield from iterate_subclasses(c)
+        
+    
 class AnyExecutor(Executor):
 
     def __init__(self, executor_selector=None) -> None:
@@ -35,7 +68,7 @@ class AnyExecutor(Executor):
         super().__init__()
 
     def __call__(self, func: Function, result_type: type) -> Function:
-        for cls in Executor.__subclasses__():
+        for cls in iterate_subclasses(Executor):
             if cls != self.__class__:
                 spec = inspect.getfullargspec(cls.__call__)
                 logging.info("executor %s spec %s", cls, spec)
@@ -45,9 +78,10 @@ class AnyExecutor(Executor):
                 elif not issubclass(result_type, spec.annotations.get('return')):
                     logging.info("executor %s does not fit: func result type %s but executor annotation %s", cls, result_type, spec.annotations.get('return'))
                 elif not self._executor_selector(cls):
-                    logging.info("executor %s rejected by the executor filter")
+                    logging.info("executor %s rejected by the executor filter", cls)
                 else:
-                    logging.info("executor fits!")                    
+                    logging.info("executor fits!")
+
                     # TODO: not only first!
                     if 'result_type' in spec.annotations:                        
                         return cls()(func, result_type)

@@ -108,3 +108,10 @@ def test_dumps():
     assert v.dumps() == '{"value": 123, "class": "LocalValue"}'
 
     assert LocalValue.from_s(v.dumps()).value == 123
+
+
+def test_cache():
+    f = LocalPythonFunction(lambda x: x+1)
+
+    v = AnyExecutor(lambda ex: getattr(ex, 'caching', False))(f(1), LocalValue)
+    
