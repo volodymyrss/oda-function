@@ -111,7 +111,8 @@ def test_dumps():
 
 
 def test_cache():
-    f = LocalPythonFunction(lambda x: x+1)
+    f = LocalPythonFunction(lambda x: x+1)(1)
+    f.cached = True
 
-    v = AnyExecutor(lambda ex: getattr(ex, 'caching', False))(f(1), LocalValue)
+    v = AnyExecutor(lambda ex: getattr(ex, 'caching', False))(f, LocalValue)
     

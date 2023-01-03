@@ -33,6 +33,8 @@ class LocalCachingExecutor(LocalExecutor):
 
     def __call__(self, func: LocalPythonFunction) -> LocalValue:
         if func.cached:
+            logger.info("function %s is caching", func)
+
             cp = self.cache_path(func)
 
             try:
@@ -49,6 +51,7 @@ class LocalCachingExecutor(LocalExecutor):
                     f.write(r.dumps())
                 logger.info("stored to cache %s, %s", cp, r)
         else:
+            logger.info("function %s is not caching", func)
             r = super().__call__(func)
         
         return r
