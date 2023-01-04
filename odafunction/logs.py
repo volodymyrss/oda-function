@@ -14,8 +14,11 @@ class Formatter(logging.Formatter):
             'DEBUG': '\033[34m',
         }[record.levelname]
          
-        # record.msg =  re.sub(r"(\[.*?\])", r"\033[35m\1\033[0m", record.getMessage())
-        return super().format(record)                
+        
+        s = super().format(record)                
+#        s = re.sub(r"(\[.*?\])", r"\033[31m\1\033[0m", s)
+
+        return s
     
 class AppLogging:
     @property
