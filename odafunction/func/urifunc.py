@@ -5,6 +5,7 @@
 import hashlib
 import importlib.util
 import json
+from pathlib import Path
 import tempfile
 from nb2workflow.nbadapter import NotebookAdapter
 from .. import LocalPythonFunction, Function, LocalValue
@@ -190,6 +191,10 @@ class URIValue(URIFunction, LocalValue):
 
             if segment is None:
                 segment = f"{p.__class__.__name__}_{hashlib.md5(repr(p).encode()).hexdigest()[:8]}"
+            else:
+                segment = re.sub("::", "/", segment)
+                segment = re.sub(r"\.py", "", segment)
+                segment = re.sub(r"\.ipynb", "", segment)
 
             logger.info(" segment:>> %s", segment)
 
@@ -204,6 +209,8 @@ class URIValue(URIFunction, LocalValue):
     def write_to_uri(self, value):
         if self.schema != 'file':
             raise NotImplementedError
+
+        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
 
         with open(self.path, "w") as f:
             json.dump(value, f)
