@@ -1,7 +1,7 @@
 import pytest
 
 from odafunction import LocalPythonFunction, LocalValue
-from odafunction.executors import LocalExecutor, AnyExecutor, default_execute_to_local_value
+from odafunction.executors import LocalExecutor, AnyExecutor, default_execute_to_value
 from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
 from odafunction.func.urifunc import URIPythonFunction, TransformURIFunction, URIipynbFunction, URIValue
 
@@ -70,7 +70,7 @@ def test_deep_function():
 
 def test_http():
     f = URIPythonFunction("https://raw.githubusercontent.com/oda-hub/oda_test_kit/master/test_image.py::get_scw_list")
-    v = default_execute_to_local_value(f(ra_obj=82, dec_obj=22, radius=5, start_date="2011-11-11T11:11:11", end_date="2012-11-11T11:11:11"))
+    v = default_execute_to_value(f(ra_obj=82, dec_obj=22, radius=5, start_date="2011-11-11T11:11:11", end_date="2012-11-11T11:11:11"))
     assert len(v) == 149
     assert '115900920010.001' in v
 
@@ -82,12 +82,12 @@ def test_store_function():
 
     print(T)
 
-    g = default_execute_to_local_value(T)
+    g = default_execute_to_value(T)
 
     print(f)
     print(g)
 
-    assert default_execute_to_local_value(f("production")) == default_execute_to_local_value(g("production"))
+    assert default_execute_to_value(f("production")) == default_execute_to_value(g("production"))
     
 
 
@@ -118,7 +118,7 @@ def test_cache():
     
 
 def test_uri_modifiers():
-    assert default_execute_to_local_value(URIPythonFunction("py+file://tests/test_data/filewithfunc.py::examplefunc")(1,2,3)) == 6
+    assert default_execute_to_value(URIPythonFunction("py+file://tests/test_data/filewithfunc.py::examplefunc")(1,2,3)) == 6
 
 
 def test_ipynb():
@@ -129,7 +129,7 @@ def test_ipynb():
     assert f.modifier == 'ipynb'
     assert f.schema == 'file'
 
-    v = default_execute_to_local_value(f(), cached=True)
+    v = default_execute_to_value(f(), cached=True)
     print("v:", v)
 
     assert v['y'] == 2

@@ -2,7 +2,7 @@ import click
 import logging
 
 from . import logs
-from .executors import default_execute_to_local_value
+from .executors import default_execute_to_value
 from .func.urifunc import URIFunction
 
 
@@ -42,7 +42,7 @@ def run(uri, no_cache, in_place):
     # TODO: inplace should be executor option!
     f.inplace = in_place
 
-    v = default_execute_to_local_value(f, cached=not no_cache)
+    v = default_execute_to_value(f, cached=not no_cache)
     logging.info("function returns: %s", v)    
 
 

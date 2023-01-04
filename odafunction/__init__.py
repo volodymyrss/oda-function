@@ -94,9 +94,9 @@ class LocalPythonFunction(Function):
 
         def f():
             # TODO: these assumptions about executor are not universal
-            from odafunction.executors import default_execute_to_local_value
-            args = [default_execute_to_local_value(a) for a in ba.args]
-            kwargs = {k: default_execute_to_local_value(v) for k, v in ba.kwargs.items()}
+            from odafunction.executors import default_execute_to_value
+            args = [default_execute_to_value(a) for a in ba.args]
+            kwargs = {k: default_execute_to_value(v) for k, v in ba.kwargs.items()}
             return self.local_python_function(*args, **kwargs)
 
         return LocalPythonFunction(f, provenance=provenance)

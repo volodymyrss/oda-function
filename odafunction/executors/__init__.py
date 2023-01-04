@@ -96,7 +96,7 @@ class AnyExecutor(Executor):
 
 
 
-def default_execute_to_local_value(f, cached=False):
+def default_execute_to_value(f, cached=False, valueclass=LocalValue):
     # only transform nullary function to local value
 
     if cached:
@@ -108,7 +108,7 @@ def default_execute_to_local_value(f, cached=False):
     if isinstance(f, Function):
         logger.info("default_execute: %s", f)
         if f.signature == inspect.Signature():
-            return AnyExecutor(executor_selector=selector)(f, LocalValue).value
+            return AnyExecutor(executor_selector=selector)(f, valueclass).value
         else:
             return f
     else:
