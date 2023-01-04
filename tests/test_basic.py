@@ -3,7 +3,7 @@ import pytest
 from odafunction import LocalPythonFunction, LocalValue
 from odafunction.executors import LocalExecutor, AnyExecutor, default_execute_to_local_value
 from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
-from odafunction.func.urifunc import URIPythonFunction, TransformURIFunction, URIipynbFunction
+from odafunction.func.urifunc import URIPythonFunction, TransformURIFunction, URIipynbFunction, URIValue
 
 def test_local_function():
     
@@ -134,4 +134,18 @@ def test_ipynb():
 
     assert v['y'] == 2
     # assert default_execute_to_local_value() == 6
+    
+
+
+def test_urivalue():
+    f = URIValue("file://urifile.data", value="blababla")
+    print("f:", f)
+
+    g = URIValue("file://urifile.data")
+    print("g:", g)
+
+    assert f.value == g.value
+
+
+
     

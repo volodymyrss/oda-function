@@ -6,7 +6,7 @@ import hashlib
 import importlib.util
 import tempfile
 from nb2workflow.nbadapter import NotebookAdapter
-from .. import LocalPythonFunction, Function
+from .. import LocalPythonFunction, Function, LocalValue
 from ..utils import iterate_subclasses
 
 import re
@@ -21,19 +21,23 @@ class URIFunction(Function):
     suffix="py"
 
     def __init__(self, uri) -> None:
-        self.uri = uri
+        self.parse_uri(uri)
+        self.load_func()
+    
 
+    def parse_uri(self, uri):
         r = re.match(r"^((?P<modifier>(ipynb|py))\+)?(?P<schema>(http|https|file))://(?P<path>.*?)(::(?P<funcname>.*))?$", uri)
         if r is None:            
             raise RuntimeError(f"URI {uri} does not look right")
         else:
             logger.info("parsed uri %s as %s", uri, r.groupdict())
+            self.uri = uri
             self.modifier = r.group('modifier')
             self.schema = r.group('schema')
             self.path = r.group('path')
             self.funcname = r.group('funcname')
-            self.load_func()
-    
+
+
 
     @staticmethod
     def from_uri(uri):
@@ -140,5 +144,70 @@ class TransformURIFunction(LocalPythonFunction):
             return to_type(new_loc + "::" + from_func.funcname)
 
 
-class URIValue(URIFunction):
-    pass
+def repr_lim(o, lim=30):
+    s = str(o)    
+    if len(s) > lim:
+        s = f"{s[:lim]}...({len(s)})"
+    
+    return s
+
+class URIValue(URIFunction, LocalValue):
+    """
+    nullary function returning value stored as byte content at URI
+    """
+
+    # cached = True
+
+    def __init__(self, uri, value=None) -> None:        
+        self.parse_uri(uri)
+
+        if value is None:
+            self.load_func()
+        else:
+            self.write_to_uri(value)
+            self._value = value
+
+
+    def write_to_uri(self, value):
+        if self.schema != 'file':
+            raise NotImplementedError
+
+        if isinstance(value, str):
+            value = value.encode()
+
+        with open(self.path, "wb") as f:
+            f.write(value)
+
+
+    @property
+    def value(self):
+        if hasattr(self, '_value'):
+            value = self._value
+        else:
+            value = "not-loaded"
+
+        if isinstance(value, str):
+            value = value.encode()
+
+        return value
+
+
+
+    def load_func_from_local_file(self, path):
+        with open(path, "rb") as f:
+            self._value = f.read()
+
+
+    def __repr__(self) -> str:
+        return super().__repr__() + f"[uri: {self.uri} value: {repr_lim(self.value)}]"
+
+    # def dumps(self):
+    #     return json.dumps({'value': self.value, 'class': self.__class__.__name__})
+
+    # @classmethod    
+    # def from_s(cls, s):
+    #     return cls(json.loads(s)['value'])
+
+    # @classmethod    
+    # def from_f(cls, f):
+    #     return cls(json.load(f)['value'])
