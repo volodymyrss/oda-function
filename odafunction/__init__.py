@@ -12,6 +12,9 @@ logger = logging.getLogger(__name__)
 rdf_prefix = "<http://odahub.io/ontology/odafunction#>"
 
 
+
+        
+
 class Function:
     cached = False
 
@@ -64,7 +67,7 @@ class Executor:
         return func
 
     def note_execution(self, func, r):
-        logger.info("execution derives equivalence %s == %s", func, r)
+        logger.info("execution derives equivalence: \n   %s\n   =(%s)=   %s", func, self, r)
 
     def __repr__(self) -> str:
         return f"[{self.__class__.__name__}: {inspect.signature(self.__call__)}]"

@@ -6,6 +6,7 @@ import os
 import pathlib
 
 from .. import LocalValue, LocalPythonFunction, Function, Executor
+from ..utils import iterate_subclasses
 
 
 logger = logging.getLogger(__name__)
@@ -58,12 +59,6 @@ class LocalCachingExecutor(LocalExecutor):
 
 
 
-def iterate_subclasses(cls):
-    yield cls
-
-    for c in cls.__subclasses__():
-        yield from iterate_subclasses(c)
-        
     
 class AnyExecutor(Executor):
 

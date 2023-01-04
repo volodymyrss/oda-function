@@ -18,19 +18,22 @@ logger = logging.getLogger(__name__)
 
 
 class URIFunction(Function):
+    suffix="py"
+
     def __init__(self, uri) -> None:
         self.uri = uri
 
-        r = re.match(r"((?P<modifier>(ipynb|py))\+)?(?P<schema>(http|https|file))://(?P<path>.*)(::(?P<funcname>.*))?", uri)
+        r = re.match(r"^((?P<modifier>(ipynb|py))\+)?(?P<schema>(http|https|file))://(?P<path>.*?)(::(?P<funcname>.*))?$", uri)
         if r is None:            
             raise RuntimeError(f"URI {uri} does not look right")
         else:
-            logger.info("parsed uri %s as %s", uri, r)
+            logger.info("parsed uri %s as %s", uri, r.groupdict())
             self.modifier = r.group('modifier')
             self.schema = r.group('schema')
             self.path = r.group('path')
             self.funcname = r.group('funcname')
             self.load_func()
+    
 
     @staticmethod
     def from_uri(uri):
@@ -43,12 +46,29 @@ class URIFunction(Function):
         
         raise RuntimeError(f"unable to parse URI {uri}")
 
-    def load_func(self):
+
+    def load_func(self):        
+        if self.schema == "file":
+            self.load_func_from_local_file(self.path)
+
+        elif self.schema in ["http", "https"]:
+            with tempfile.NamedTemporaryFile(suffix="." + self.suffix) as f:
+                self.content = requests.get(f"{self.schema}://{self.path}").content
+                f.write(self.content)
+                f.flush()
+                self.load_func_from_local_file(f.name)
+
+        else:
+            raise NotImplementedError    
+
+
+    def load_func_from_local_file(self, path):
         raise NotImplementedError
 
 
 class URIPythonFunction(URIFunction, LocalPythonFunction):
-    suffix = "py"
+    suffix="py"
+    
 
     def __init__(self, uri) -> None:
         URIFunction.__init__(self, uri)
@@ -69,21 +89,7 @@ class URIPythonFunction(URIFunction, LocalPythonFunction):
             else:
                 spec.loader.exec_module(module)
                 self.local_python_function = getattr(module, self.funcname)
-                
 
-    def load_func(self):        
-        if self.schema == "file":
-            self.load_func_from_local_file(self.path)
-
-        elif self.schema in ["http", "https"]:
-            with tempfile.NamedTemporaryFile(suffix="." + self.suffix) as f:
-                self.content = requests.get(f"{self.schema}://{self.path}").content
-                f.write(self.content)
-                f.flush()
-                self.load_func_from_local_file(f.name)
-
-        else:
-            raise NotImplementedError
 
 
     def __repr__(self) -> str:
@@ -95,10 +101,20 @@ class URIipynbFunction(URIPythonFunction):
     suffix = "ipynb"
 
     def load_func_from_local_file(self, path):
+        nba = NotebookAdapter(path)
+        
+        logger.info("parameter definitions: %s", nba.extract_parameters())
+        logger.info("output definitions: %s", nba.extract_output_declarations())        
+
         def local_python_function():
             nba = NotebookAdapter(path)
-            nba.execute({})
-            return nba.extract_output()
+            nba.execute({}, inplace=getattr(self, 'inplace', False))
+            output = nba.extract_output()
+            nba.remove_tmpdir()
+            return {
+                'output_nb': None,
+                'output_values': output
+            }
 
         self.local_python_function = local_python_function
 
@@ -122,3 +138,7 @@ class TransformURIFunction(LocalPythonFunction):
             logger.info("storing function to %s", r.group('path'))
             
             return to_type(new_loc + "::" + from_func.funcname)
+
+
+class URIValue(URIFunction):
+    pass
