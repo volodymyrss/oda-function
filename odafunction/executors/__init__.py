@@ -6,20 +6,24 @@ import os
 import pathlib
 
 from .. import LocalValue, LocalPythonFunction, Function, Executor
+from ..func.urifunc import URIValue
 from ..utils import iterate_subclasses
 
 
 logger = logging.getLogger(__name__)
 
+# provenance derives in two ways: partially applying functions, and executing them (TODO: it's basically the same)
+
 class LocalExecutor(Executor):
+    output_value_class=LocalValue
+
     def __call__(self, func: LocalPythonFunction) -> LocalValue:
         if func.signature != inspect.Signature():
             raise RuntimeError(f"found non-0 signature: {func.signature}, please reduced function arguments before passing it to executors")
         
-        r = LocalValue(func.local_python_function())
+        r = self.output_value_class(value=func.local_python_function(), provenance=[(self,)] + func.provenance)
 
         self.note_execution(func, r)
-
         return r
 
 
@@ -56,6 +60,13 @@ class LocalCachingExecutor(LocalExecutor):
             r = super().__call__(func)
         
         return r
+
+
+class LocalURIExecutor(LocalExecutor):
+    output_value_class=URIValue
+
+    def __call__(self, func: LocalPythonFunction) -> URIValue:
+        return super().__call__(func)
 
 
 
@@ -96,9 +107,9 @@ class AnyExecutor(Executor):
 
 
 
-def default_execute_to_value(f, cached=False, valueclass=LocalValue):
+def default_execute_to_value(f, cached=False, valueclass: type=LocalValue):
     # only transform nullary function to local value
-
+    
     if cached:
         f.cached = True
         selector = lambda ex: getattr(ex, 'caching', False )
@@ -108,8 +119,10 @@ def default_execute_to_value(f, cached=False, valueclass=LocalValue):
     if isinstance(f, Function):
         logger.info("default_execute: %s", f)
         if f.signature == inspect.Signature():
+            logger.info("nullary: default_execute proceeds to AnyExecutor")
             return AnyExecutor(executor_selector=selector)(f, valueclass).value
         else:
+            logger.info("NOT nullary returning")
             return f
     else:
         return f

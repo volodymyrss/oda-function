@@ -23,7 +23,7 @@ class Function:
 
     @property
     def provenance(self):
-        return getattr(self, '_provenance', None)
+        return getattr(self, '_provenance', [])
 
     # this is not call but argument substitution. only nullary functions can be executed by the executor
     def __call__(self, *args: Any, **kwds: Any):
@@ -67,7 +67,7 @@ class Executor:
         return func
 
     def note_execution(self, func, r):
-        logger.info("execution derives equivalence: \n   %s\n   =(%s)=   %s", func, self, r)
+        logger.info("execution derives equivalence: \n   %s\n   =(%s)=\n   %s", func, self, r)
 
     def __repr__(self) -> str:
         return f"[{self.__class__.__name__}: {inspect.signature(self.__call__)}]"
@@ -90,7 +90,7 @@ class LocalPythonFunction(Function):
 
     def __call__(self, *args: Any, **kwds: Any):
         ba = self.signature.bind(*args, **kwds)        
-        provenance = (self.provenance or []) + [(self, args, kwds)]
+        provenance = [(self, args, kwds)] + (self.provenance or [])
 
         def f():
             # TODO: these assumptions about executor are not universal
@@ -106,7 +106,8 @@ class LocalValue(Function):
     cached = True
 
     # a particular, largely artificial, kind of function is the one whos value can be retrieved locally
-    def __init__(self, value) -> None:        
+    def __init__(self, value, provenance=None) -> None:        
+        super().__init__(provenance)
         self._value = value
 
     @property

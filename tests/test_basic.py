@@ -147,5 +147,13 @@ def test_urivalue():
     assert f.value == g.value
 
 
+def test_urivalue_from_func():
+    f_add = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
+
+    v = default_execute_to_value(f_add(1, 2, 3), cached=False, valueclass=URIValue)
+
+    print("v:", v)
+    
+
 
     

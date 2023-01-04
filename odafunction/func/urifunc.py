@@ -4,6 +4,7 @@
 
 import hashlib
 import importlib.util
+import json
 import tempfile
 from nb2workflow.nbadapter import NotebookAdapter
 from .. import LocalPythonFunction, Function, LocalValue
@@ -26,6 +27,7 @@ class URIFunction(Function):
     
 
     def parse_uri(self, uri):
+        logger.info("parsing URI %s", uri)
         r = re.match(r"^((?P<modifier>(ipynb|py))\+)?(?P<schema>(http|https|file))://(?P<path>.*?)(::(?P<funcname>.*))?$", uri)
         if r is None:            
             raise RuntimeError(f"URI {uri} does not look right")
@@ -158,8 +160,16 @@ class URIValue(URIFunction, LocalValue):
 
     # cached = True
 
-    def __init__(self, uri, value=None) -> None:        
-        self.parse_uri(uri)
+    def __init__(self, uri=None, value=None, provenance=None) -> None:
+        Function.__init__(self, provenance=provenance)
+
+        if uri is None:
+            if provenance is None:
+                raise NotImplementedError
+            else:
+                self.construct_uri_from_provenance()
+        else:
+            self.parse_uri(uri)
 
         if value is None:
             self.load_func()
@@ -168,15 +178,35 @@ class URIValue(URIFunction, LocalValue):
             self._value = value
 
 
+    def construct_uri_from_provenance(self):
+        segments = []
+        for p in reversed(self.provenance):
+            logger.info(" prov:>> %s", p)
+
+            segment = getattr(p[0], 'uri', None)
+
+            if segments == [] and segment is None:
+                segments.append("https://odahub.io/ontology")
+
+            if segment is None:
+                segment = f"{p.__class__.__name__}_{hashlib.md5(repr(p).encode()).hexdigest()[:8]}"
+
+            logger.info(" segment:>> %s", segment)
+
+            segments.append(segment)
+
+        self.uri = "/".join(segments)
+                
+        logger.info("derived uri %s", self.uri)
+        self.parse_uri(self.uri)
+        
+
     def write_to_uri(self, value):
         if self.schema != 'file':
             raise NotImplementedError
 
-        if isinstance(value, str):
-            value = value.encode()
-
-        with open(self.path, "wb") as f:
-            f.write(value)
+        with open(self.path, "w") as f:
+            json.dump(value, f)
 
 
     @property
@@ -185,29 +215,15 @@ class URIValue(URIFunction, LocalValue):
             value = self._value
         else:
             value = "not-loaded"
-
-        if isinstance(value, str):
-            value = value.encode()
-
+        
         return value
 
 
-
     def load_func_from_local_file(self, path):
-        with open(path, "rb") as f:
-            self._value = f.read()
+        with open(path, "r") as f:
+            self._value = json.load(f)
 
 
     def __repr__(self) -> str:
         return super().__repr__() + f"[uri: {self.uri} value: {repr_lim(self.value)}]"
 
-    # def dumps(self):
-    #     return json.dumps({'value': self.value, 'class': self.__class__.__name__})
-
-    # @classmethod    
-    # def from_s(cls, s):
-    #     return cls(json.loads(s)['value'])
-
-    # @classmethod    
-    # def from_f(cls, f):
-    #     return cls(json.load(f)['value'])
