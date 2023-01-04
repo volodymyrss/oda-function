@@ -119,6 +119,7 @@ class URIipynbFunction(URIPythonFunction):
             output = nba.extract_output()            
             with open(nba.output_notebook_fn) as f:
                 output_nb = json.load(f)
+
             nba.remove_tmpdir()
             return {
                 'output_nb': output_nb,
@@ -158,6 +159,7 @@ class URIValue(URIFunction, LocalValue):
     # cached = True
 
     def __init__(self, uri=None, value=None, provenance=None) -> None:
+        logger.info("constructing %s from uri=%s value=%s provenance=%s", self.__class__, uri, repr_trim(value), provenance)
         Function.__init__(self, provenance=provenance)
 
         if uri is None:
@@ -178,25 +180,33 @@ class URIValue(URIFunction, LocalValue):
     def construct_uri_from_provenance(self):
         # TODO: here, also construct annotations
 
+        codify = lambda p: f"{p.__class__.__name__}_{hashlib.md5(repr(p).encode()).hexdigest()[:8]}"
+        
         segments = []
         for p in reversed(self.provenance):
             logger.info(" prov:>> %s", p)
 
-            segment = getattr(p[0], 'uri', None)
-
-            if segments == [] and segment is None:
-                segments.append("https://odahub.io/ontology")
-
-            if segment is None:
-                segment = f"{p.__class__.__name__}_{hashlib.md5(repr(p).encode()).hexdigest()[:8]}"
+            if p[0] == 'execute':
+                segment = p[2].uri + "/" + codify(p[1])
+            elif p[1] == 'partial':
+                segment = getattr(p[1], 'uri', None)
             else:
-                segment = re.sub("::", "/", segment)
-                segment = re.sub(r"\.py", "", segment)
-                segment = re.sub(r"\.ipynb", "", segment)
+                raise NotImplementedError
+
+            
+            if segment is None:
+                segment = codify(p)
+            
+            segment = re.sub("::", "/", segment)
+            segment = re.sub(r"\.py", "", segment)
+            segment = re.sub(r"\.ipynb", "", segment)
 
             logger.info(" segment:>> %s", segment)
 
             segments.append(segment)
+
+        if not re.match(r"^((ipynb|py)\+)?file://.*$", segments[0]):
+            segments.insert(0, "file://urivalue/")
 
         self.uri = "/".join(segments)
                 

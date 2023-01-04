@@ -22,7 +22,7 @@ class LocalExecutor(Executor):
         if func.signature != inspect.Signature():
             raise RuntimeError(f"found non-0 signature: {func.signature}, please reduced function arguments before passing it to executors")
         
-        r = self.output_value_class(value=func.local_python_function(), provenance=[(self,)] + func.provenance)
+        r = self.output_value_class(value=func.local_python_function(), provenance=[('execute', self, func)] + func.provenance)
 
         self.note_execution(func, r)
         return r
@@ -32,8 +32,8 @@ class LocalCachingExecutor(LocalExecutor):
     caching = True
 
     def cache_path(self, func):
-        uid = hashlib.md5(str(func._provenance).encode()).hexdigest()[:8]
-        logger.info('uid %s from provenance %s', uid, func._provenance)
+        uid = hashlib.md5(str(func.provenance).encode()).hexdigest()[:8]
+        logger.info('uid %s from provenance %s', uid, func.provenance)
         return pathlib.Path(os.getenv('HOME', './')) / f".cache/odafunction/{uid}.json"
 
 
@@ -114,10 +114,14 @@ class AnyExecutor(Executor):
         raise RuntimeError("all executors gave up")
 
 
+# TODO move somewhere
+default_execute_to_value_cached = False
 
-
-def default_execute_to_value(f, cached=False, valueclass: type=LocalValue):
+def default_execute_to_value(f, cached=None, valueclass: type=LocalValue):
     # only transform nullary function to local value
+
+    if cached is None:
+        cached = default_execute_to_value_cached
     
     if cached:
         f.cached = True

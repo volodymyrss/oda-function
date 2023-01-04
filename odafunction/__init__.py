@@ -89,11 +89,11 @@ class LocalPythonFunction(Function):
 
     def __call__(self, *args: Any, **kwds: Any):
         ba = self.signature.bind(*args, **kwds)        
-        provenance = [(self, args, kwds)] + (self.provenance or [])
+        provenance = [('partial', self, args, kwds)] + (self.provenance or [])
 
         def f():
             # TODO: these assumptions about executor are not universal
-            from odafunction.executors import default_execute_to_value
+            from .executors import default_execute_to_value
             args = [default_execute_to_value(a) for a in ba.args]
             kwargs = {k: default_execute_to_value(v) for k, v in ba.kwargs.items()}
             return self.local_python_function(*args, **kwargs)
