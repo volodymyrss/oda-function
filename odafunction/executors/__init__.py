@@ -4,6 +4,7 @@ import json
 import logging
 import os
 import pathlib
+import traceback
 
 from .. import LocalValue, LocalPythonFunction, Function, Executor
 from ..func.urifunc import URIValue
@@ -44,11 +45,12 @@ class LocalCachingExecutor(LocalExecutor):
 
             try:
                 with open(cp) as f:
-                    r = LocalValue.from_f(f)
+                    r = self.output_value_class.from_f(f)
 
                 logger.info("loaded from cache %s: %s", cp, r)
             except Exception as e:
                 logger.info("can not load from cache %s: %s", cp, e)
+                logger.debug("%s", traceback.format_exc())
                 r = super().__call__(func)
 
                 cp.parent.mkdir(parents=True, exist_ok=True)
@@ -68,6 +70,13 @@ class LocalURIExecutor(LocalExecutor):
     def __call__(self, func: LocalPythonFunction) -> URIValue:
         return super().__call__(func)
 
+
+
+class LocalCachingURIExecutor(LocalCachingExecutor):
+    output_value_class=URIValue
+
+    def __call__(self, func: LocalPythonFunction) -> URIValue:
+        return super().__call__(func)
 
 
     

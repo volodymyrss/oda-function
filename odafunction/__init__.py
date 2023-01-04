@@ -1,18 +1,16 @@
 import json
 from typing import Any, List
 import inspect
-import typing
 
 import logging
+
+from .utils import repr_trim
 
 logger = logging.getLogger(__name__)
 
 # sometimes, as the progress is made, code develops its own autonomous logic. it's reconciliation, harmony, and creation
 
 rdf_prefix = "<http://odahub.io/ontology/odafunction#>"
-
-
-
         
 
 class Function:
@@ -115,16 +113,33 @@ class LocalValue(Function):
         return self._value
 
     def __repr__(self) -> str:
-        return super().__repr__() + f"[value: {self.value}]"
+        return super().__repr__() + f"[value: {repr_trim(self.value)}]"
+
+
+    @property
+    def constructor_args(self):
+        return {'value': self.value}
+
 
     def dumps(self):
-        return json.dumps({'value': self.value, 'class': self.__class__.__name__})
+        return json.dumps({
+            'class': self.__class__.__name__,
+            **self.constructor_args
+        })
+
+
+    @classmethod
+    def from_dict(cls, metadata):
+        return cls(**{k: v for k, v in metadata.items() if k!='class'})
+    
 
     @classmethod    
     def from_s(cls, s):
-        return cls(json.loads(s)['value'])
+        return cls.from_dict(json.loads(s))      
+        
 
     @classmethod    
     def from_f(cls, f):
-        return cls(json.load(f)['value'])
+        return cls.from_dict(json.load(f))
+        
 

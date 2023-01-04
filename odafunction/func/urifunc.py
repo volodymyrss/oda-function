@@ -9,7 +9,7 @@ from pathlib import Path
 import tempfile
 from nb2workflow.nbadapter import NotebookAdapter
 from .. import LocalPythonFunction, Function, LocalValue
-from ..utils import iterate_subclasses
+from ..utils import iterate_subclasses, repr_trim
 
 import re
 import logging
@@ -28,7 +28,7 @@ class URIFunction(Function):
     
 
     def parse_uri(self, uri):
-        logger.info("parsing URI %s", uri)
+        logger.info("parsing URI %s", repr_trim(uri))
         r = re.match(r"^((?P<modifier>(ipynb|py))\+)?(?P<schema>(http|https|file))://(?P<path>.*?)(::(?P<funcname>.*))?$", uri)
         if r is None:            
             raise RuntimeError(f"URI {uri} does not look right")
@@ -116,10 +116,11 @@ class URIipynbFunction(URIPythonFunction):
         def local_python_function():
             nba = NotebookAdapter(path)
             nba.execute({}, inplace=getattr(self, 'inplace', False))
-            output = nba.extract_output()
+            output = nba.extract_output()            
+            output_nb = open(nba.output_notebook_fn).read()
             nba.remove_tmpdir()
             return {
-                'output_nb': None,
+                'output_nb': output_nb,
                 'output_values': output
             }
 
@@ -147,12 +148,6 @@ class TransformURIFunction(LocalPythonFunction):
             return to_type(new_loc + "::" + from_func.funcname)
 
 
-def repr_lim(o, lim=30):
-    s = str(o)    
-    if len(s) > lim:
-        s = f"{s[:lim]}...({len(s)})"
-    
-    return s
 
 class URIValue(URIFunction, LocalValue):
     """
@@ -180,6 +175,8 @@ class URIValue(URIFunction, LocalValue):
 
 
     def construct_uri_from_provenance(self):
+        # TODO: here, also construct annotations
+
         segments = []
         for p in reversed(self.provenance):
             logger.info(" prov:>> %s", p)
@@ -232,5 +229,9 @@ class URIValue(URIFunction, LocalValue):
 
 
     def __repr__(self) -> str:
-        return super().__repr__() + f"[uri: {self.uri} value: {repr_lim(self.value)}]"
+        return super().__repr__() + f"[uri: {self.uri} value: {repr_trim(self.value)}]"
 
+
+    @property
+    def constructor_args(self):
+        return {'value': self.value, 'uri': self.uri}
