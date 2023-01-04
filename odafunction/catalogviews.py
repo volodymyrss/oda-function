@@ -1,5 +1,6 @@
 from . import FunctionCatalog, Function, LocalValue
-from .executors import AnyExecutor
+from .func.urifunc import URIValue
+from .executors import default_execute_to_value
 
 
 class FunctionCatalogKeyedLocalValued(FunctionCatalog):
@@ -20,7 +21,7 @@ class FunctionCatalogKeyedLocalValuedAttrs(FunctionCatalogKeyedLocalValued):
 
             def f(*args, **kwds):
                 f0 = func(*args, **kwds)
-                return AnyExecutor()(f0, LocalValue).value
+                return default_execute_to_value(f0, cached=True, valueclass=URIValue)
 
             return f
 

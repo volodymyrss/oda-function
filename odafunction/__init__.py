@@ -1,3 +1,4 @@
+from collections import OrderedDict
 import json
 from typing import Any, List
 import inspect
@@ -122,10 +123,10 @@ class LocalValue(Function):
 
 
     def dumps(self):
-        return json.dumps({
+        return json.dumps(OrderedDict(sorted({
             'class': self.__class__.__name__,
             **self.constructor_args
-        })
+        }.items())))
 
 
     @classmethod

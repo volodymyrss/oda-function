@@ -117,7 +117,8 @@ class URIipynbFunction(URIPythonFunction):
             nba = NotebookAdapter(path)
             nba.execute({}, inplace=getattr(self, 'inplace', False))
             output = nba.extract_output()            
-            output_nb = open(nba.output_notebook_fn).read()
+            with open(nba.output_notebook_fn) as f:
+                output_nb = json.load(f)
             nba.remove_tmpdir()
             return {
                 'output_nb': output_nb,

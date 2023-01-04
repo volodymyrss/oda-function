@@ -105,7 +105,7 @@ def test_dumps():
 
     v = LocalValue(123)
 
-    assert v.dumps() == '{"value": 123, "class": "LocalValue"}'
+    assert v.dumps() == '{"class": "LocalValue", "value": 123}'
 
     assert LocalValue.from_s(v.dumps()).value == 123
 
