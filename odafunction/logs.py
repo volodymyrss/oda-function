@@ -16,7 +16,7 @@ class Formatter(logging.Formatter):
          
         
         s = super().format(record)                
-#        s = re.sub(r"(\[.*?\])", r"\033[31m\1\033[0m", s)
+        s = re.sub(r"(\*.*\*)", r"\033[31m\1\033[0m", s)
 
         return s
     

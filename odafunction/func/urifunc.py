@@ -3,12 +3,15 @@
 # 
 
 import hashlib
+import os
+import rdflib
 import importlib.util
 import json
 from pathlib import Path
 import tempfile
+from typing import Any
 from nb2workflow.nbadapter import NotebookAdapter
-from .. import LocalPythonFunction, Function, LocalValue
+from .. import LocalPythonFunction, Function, LocalValue, Executor
 from ..utils import iterate_subclasses, repr_trim
 
 import re
@@ -19,17 +22,46 @@ import requests
 logger = logging.getLogger(__name__)
 
 
-class URIFunction(Function):
-    suffix="py"
+class FuncJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, Function) or isinstance(obj, Executor):
+            return f"[{obj.__class__.__name__}:{getattr(obj, 'uri', '')}]"
+        else:
+            return json.JSONEncoder.default(self, obj)
 
-    def __init__(self, uri) -> None:
-        self.parse_uri(uri)
-        self.load_func()
-    
+
+class URIFunction(Function):
+    """
+    function which can be identified by URI
+    partial call produces new URI from provenance
+    """
+
+    def __init__(self, uri=None, value=None, provenance=None) -> None:
+        logger.info("constructing %s from uri=%s value=%s provenance=%s", self.__class__, uri, repr_trim(value), provenance)
+        Function.__init__(self, provenance=provenance)
+
+        if uri is None:
+            if provenance is None:
+                raise NotImplementedError
+            else:
+                self.construct_uri_from_provenance()
+        else:
+            self.parse_uri(uri)
+
+
+    @property
+    def uri(self):
+        return self._uri
+
+
+    @uri.setter
+    def uri(self, uri):
+        self._uri = rdflib.URIRef(uri)
+
 
     def parse_uri(self, uri):
         logger.info("parsing URI %s", repr_trim(uri))
-        r = re.match(r"^((?P<modifier>(ipynb|py))\+)?(?P<schema>(http|https|file))://(?P<path>.*?)(::(?P<funcname>.*))?$", uri)
+        r = re.match(r"^((?P<modifier>(ipynb|py))\+)?(?P<schema>(http|https|file))://(?P<path>.*?)(::(?P<funcname>.*?))?(@(?P<revision>.*))?$", uri)
         if r is None:            
             raise RuntimeError(f"URI {uri} does not look right")
         else:
@@ -38,21 +70,134 @@ class URIFunction(Function):
             self.modifier = r.group('modifier')
             self.schema = r.group('schema')
             self.path = r.group('path')
-            self.funcname = r.group('funcname')
+            self.funcname = r.group('funcname') 
+            self.revision = r.group('revision')
 
 
 
     @staticmethod
     def from_uri(uri):
         for cls in iterate_subclasses(URIFunction):
+            if cls in [Function, URIFunction]:
+                continue
+
             try:
                 # TODO: not only first!
-                return cls(uri)
+                return cls(uri=uri)
             except RuntimeError as e:
                 logger.info("can not parse %s as %s", uri, cls)
         
         raise RuntimeError(f"unable to parse URI {uri}")
 
+
+    # TODO: this might rather belong to an partial executor
+    def construct_uri_from_provenance(self):
+        # TODO: here, also construct annotations
+        logger.info("prov:\n %s", json.dumps(self.provenance, indent=4, sort_keys=True, cls=FuncJSONEncoder))
+                
+        self.uri = uri_from_provenance(self.provenance)
+                
+        logger.info("derived uri %s", self.uri)
+        self.parse_uri(self.uri)
+
+
+
+def codify(p): 
+    if hasattr(p, 'uri'):        
+        c = re.sub("::", "/", p.uri)
+        c = re.sub(r"\.py", "", c)
+        c = re.sub(r"\.ipynb", "", c)
+        return c
+
+    else:
+        return f"{p.__class__.__name__}_{hashlib.md5(repr(p).encode()).hexdigest()[:8]}"
+
+
+def uri_segments_from_provenance(p):
+    segments = []
+
+    logger.info(" \033[32m*prov:>>*\033[0m %s", p)
+        
+    
+    if p is None:
+        return []
+    elif p[0] == 'execute':
+        segments.append(codify(p[1]))
+        segments.append(codify(p[2]))
+        segments += uri_segments_from_provenance(p[3])
+
+    elif p[0] == 'partial':
+        segments.append(hashlib.md5(json.dumps([p[1:3]]).encode()).hexdigest()[:8])
+        segments.append(codify(p[3][0]))
+        segments += uri_segments_from_provenance(p[3][1])
+    elif isinstance(p, (list, tuple)):
+        for e in p:
+            segments += uri_segments_from_provenance(e)
+    else:
+        raise NotImplementedError
+
+
+    logger.info(" \033[31m*segment:>>*\033[0m %s", segments)
+
+    return segments
+
+
+def uri_from_provenance(p):
+    segments = uri_segments_from_provenance(p)
+
+    if not re.match(r"^((ipynb|py)\+)?file://.*$", segments[0]):
+        segments.insert(0, "file:///tmp/urivalue/")
+
+    for i in range(1, len(segments)):
+        segments[i] = re.sub(r"(ipynb|py\+)?(file|http|https)://", "", segments[i])
+
+    for i in range(len(segments)):
+        segments[i] = re.sub("@", "/", segments[i])
+
+    return rdflib.URIRef(("/".join(segments)).rstrip("/"))
+    
+
+
+
+class URIFileFunction(URIFunction):
+    """
+    when URI actually represents a file which can be stored locally and loaded
+    """
+
+    def __init__(self, uri=None, value=None, provenance=None, verify_revision=True) -> None:
+        super().__init__(uri, value, provenance)
+
+        if value is None:
+            self.load_func()
+        else:
+            self.write_to_uri(value)
+            self._value = value
+
+        if verify_revision:
+            if (self.revision or "") != self.actual_revision_str:
+                raise RuntimeError(f'unable to discover {self.uri} at requested revision "{self.revision}", have "{self.actual_revision_str}"')
+
+
+    @classmethod
+    def from_generic_uri(cls, uri):
+        f = cls(uri, verify_revision=False)
+        
+        return cls(f.uri.split("@")[0] + "@" + f.actual_revision_str)
+                
+
+    @property
+    def actual_revision_str(self):
+        return ",".join([f"{k}={v}" for k, v in sorted(self.actual_revision_dict.items())])
+
+    
+    @property
+    def actual_revision_dict(self):
+        return {}
+
+
+    def write_to_uri(self, value):
+        logger.warning("this function has no persistent representation")
+        
 
     def load_func(self):        
         if self.schema == "file":
@@ -73,12 +218,15 @@ class URIFunction(Function):
         raise NotImplementedError
 
 
-class URIPythonFunction(URIFunction, LocalPythonFunction):
+
+class URIPythonFunction(URIFileFunction, LocalPythonFunction):
     suffix="py"
     
 
-    def __init__(self, uri) -> None:
-        URIFunction.__init__(self, uri)
+    def __init__(self, uri=None, func=None, provenance=None, **kwargs) -> None:
+        LocalPythonFunction.__init__(self, func)
+        URIFileFunction.__init__(self, uri=uri, value=func, provenance=provenance, **kwargs)
+
 
     def load_func_from_local_file(self, path):
         logger.info("loading from %s", path)
@@ -99,24 +247,70 @@ class URIPythonFunction(URIFunction, LocalPythonFunction):
 
 
 
+
     def __repr__(self) -> str:
         return super().__repr__() + f":[{self.uri}]"
 
 
+    def __call__(self, *args: Any, **kwds: Any):
+        logger.info("calling %s", self)
+        lf = LocalPythonFunction.__call__(self, *args, **kwds)
+        logger.info("LocalPythonFunction: %s", lf)
+        f = URIPythonFunction(uri=None, func=lf.local_python_function, provenance=lf.provenance)
+        logger.info("URIPythonFunction: %s", f)
+        return f
+
 
 class URIipynbFunction(URIPythonFunction):
     suffix = "ipynb"
+
+    @property
+    def actual_revision_dict(self):
+        d = super().actual_revision_dict
+
+        if self.version:
+            d['oda_version'] = self.version
+        
+        return d
+
+
+    def nba_to_oda_version(self, nba):
+        G = rdflib.Graph()
+        G.parse(data=nba.extra_ttl)        
+
+        v = list(G.objects(nba.nb_uri, rdflib.URIRef("https://odahub.io/ontology#version")))
+
+        if len(v) == 1:
+            self.version = v[0]
+        else:
+            self.version = None
+            
+
 
     def load_func_from_local_file(self, path):
         nba = NotebookAdapter(path)
         
         logger.info("parameter definitions: %s", nba.extract_parameters())
         logger.info("output definitions: %s", nba.extract_output_declarations())        
+        logger.info("function spot uri:\n %s", nba.nb_uri)
+        logger.info("extra_ttl:\n %s", nba.extra_ttl)
+
+        self.nba_to_oda_version(nba)
+        logger.info("discovered function version %s", self.version)
 
         def local_python_function():
+            # TODO!
+            args = []
+            kwargs = {}
+
+            if len(args) > 0:
+                raise NotImplementedError(f"ipynb function can not consume positional args: {args}")
+
             nba = NotebookAdapter(path)
-            nba.execute({}, inplace=getattr(self, 'inplace', False))
-            output = nba.extract_output()            
+            print("nba", nba)
+            nba.execute(kwargs, inplace=False)
+            # nba.execute({}, inplace=getattr(self, 'inplace', False))
+            output = nba.extract_output()
             with open(nba.output_notebook_fn) as f:
                 output_nb = json.load(f)
 
@@ -151,74 +345,19 @@ class TransformURIFunction(LocalPythonFunction):
 
 
 
-class URIValue(URIFunction, LocalValue):
+class URIValue(URIFileFunction, LocalValue):
     """
     nullary function returning value stored as byte content at URI
     """
 
     # cached = True
 
-    def __init__(self, uri=None, value=None, provenance=None) -> None:
-        logger.info("constructing %s from uri=%s value=%s provenance=%s", self.__class__, uri, repr_trim(value), provenance)
-        Function.__init__(self, provenance=provenance)
-
-        if uri is None:
-            if provenance is None:
-                raise NotImplementedError
-            else:
-                self.construct_uri_from_provenance()
-        else:
-            self.parse_uri(uri)
-
-        if value is None:
-            self.load_func()
-        else:
-            self.write_to_uri(value)
-            self._value = value
-
-
-    def construct_uri_from_provenance(self):
-        # TODO: here, also construct annotations
-
-        codify = lambda p: f"{p.__class__.__name__}_{hashlib.md5(repr(p).encode()).hexdigest()[:8]}"
-        
-        segments = []
-        for p in reversed(self.provenance):
-            logger.info(" prov:>> %s", p)
-
-            if p[0] == 'execute':
-                segment = p[2].uri + "/" + codify(p[1])
-            elif p[1] == 'partial':
-                segment = getattr(p[1], 'uri', None)
-            else:
-                raise NotImplementedError
-
-            
-            if segment is None:
-                segment = codify(p)
-            
-            segment = re.sub("::", "/", segment)
-            segment = re.sub(r"\.py", "", segment)
-            segment = re.sub(r"\.ipynb", "", segment)
-
-            logger.info(" segment:>> %s", segment)
-
-            segments.append(segment)
-
-        if not re.match(r"^((ipynb|py)\+)?file://.*$", segments[0]):
-            segments.insert(0, "file://urivalue/")
-
-        self.uri = "/".join(segments)
                 
-        logger.info("derived uri %s", self.uri)
-        self.parse_uri(self.uri)
-        
-
     def write_to_uri(self, value):
         if self.schema != 'file':
             raise NotImplementedError
 
-        Path(self.path).parent.mkdir(parents=True, exist_ok=True)
+        os.makedirs(Path(self.path).parent, exist_ok=True)
 
         with open(self.path, "w") as f:
             json.dump(value, f)
@@ -235,6 +374,8 @@ class URIValue(URIFunction, LocalValue):
 
 
     def load_func_from_local_file(self, path):
+        logger.info("load from local file: %s", path)
+
         with open(path, "r") as f:
             self._value = json.load(f)
 
@@ -245,4 +386,4 @@ class URIValue(URIFunction, LocalValue):
 
     @property
     def constructor_args(self):
-        return {'value': self.value, 'uri': self.uri}
+        return {**super().constructor_args, 'uri': self.uri}

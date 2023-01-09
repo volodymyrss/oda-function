@@ -38,7 +38,7 @@ def run(uri, no_cache, inplace, urivalue):
     f = URIFunction.from_uri(uri)()
 
     # TODO: inplace should be executor option!
-    f.inplace = inplace
+    # f.inplace = inplace
 
     v = default_execute_to_value(f, 
                                  cached=not no_cache, 

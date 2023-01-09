@@ -1,4 +1,5 @@
 import hashlib
+import rdflib
 import inspect
 import json
 import logging
@@ -7,8 +8,8 @@ import pathlib
 import traceback
 
 from .. import LocalValue, LocalPythonFunction, Function, Executor
-from ..func.urifunc import URIValue
-from ..utils import iterate_subclasses
+from ..func.urifunc import URIPythonFunction, URIValue, URIFunction
+from ..utils import iterate_subclasses, repr_trim
 
 
 logger = logging.getLogger(__name__)
@@ -22,44 +23,73 @@ class LocalExecutor(Executor):
         if func.signature != inspect.Signature():
             raise RuntimeError(f"found non-0 signature: {func.signature}, please reduced function arguments before passing it to executors")
         
-        r = self.output_value_class(value=func.local_python_function(), provenance=[('execute', self, func)] + func.provenance)
+        logger.info("executor: %s running func: %s", self, func)
+        v = func.local_python_function()
+        logger.info("found value %s", repr_trim(v))
+        ex = Executor()
+        
+        r = self.output_value_class(value=v, provenance=ex(func, type).provenance)
+        logger.info("constructing output class %s as %s", self.output_value_class, r)
 
         self.note_execution(func, r)
         return r
 
 
-class LocalCachingExecutor(LocalExecutor):
-    caching = True
+class LocalURICachingExecutor(LocalExecutor):
+    caching=True
 
-    def cache_path(self, func):
-        uid = hashlib.md5(str(func.provenance).encode()).hexdigest()[:8]
-        logger.info('uid %s from provenance %s', uid, func.provenance)
-        return pathlib.Path(os.getenv('HOME', './')) / f".cache/odafunction/{uid}.json"
+    # executor only stores equivalences, not values
+
+    @property
+    def uri(self):
+        return rdflib.URIRef(f"https://odahub.io/ontology#{self.__class__.__name__}")
+
+    def __init__(self) -> None:
+        super().__init__()
+
+        self.load_cache()
+
+    
+    @property
+    def memory_graph_path(self):
+        return pathlib.Path(os.environ['HOME']) / f".cache/odafunction/{self.__class__.__name__}-memory-graph.ttl"
 
 
-    def __call__(self, func: LocalPythonFunction) -> LocalValue:
-        if func.cached:
-            logger.info("function %s is caching", func)
+    def load_cache(self):
+        self.memory_graph = rdflib.Graph()
 
-            cp = self.cache_path(func)
-
-            try:
-                with open(cp) as f:
-                    r = self.output_value_class.from_f(f)
-
-                logger.info("loaded from cache %s: %s", cp, r)
-            except Exception as e:
-                logger.info("can not load from cache %s: %s", cp, e)
-                logger.debug("%s", traceback.format_exc())
-                r = super().__call__(func)
-
-                cp.parent.mkdir(parents=True, exist_ok=True)
-                with open(cp, "w") as f:
-                    f.write(r.dumps())
-                logger.info("stored to cache %s, %s", cp, r)
+        if self.memory_graph_path.exists():
+            self.memory_graph.parse(open(str(self.memory_graph_path)), format="turtle")
+            logger.info("loaded cache from %s; %s entries", self.memory_graph_path, len(list(self.memory_graph)))
         else:
-            logger.info("function %s is not caching", func)
-            r = super().__call__(func)
+            logger.info("initialized empty cache")
+
+
+    def save_cache(self):
+        self.memory_graph.serialize(open(str(self.memory_graph_path), "wb"), format="turtle")
+        logger.info("stored cache to %s", self.memory_graph_path)
+
+    
+    def __call__(self, func: URIPythonFunction) -> URIValue:
+        
+        objects = list(self.memory_graph.objects(func.uri, self.uri))
+
+        if len(objects) == 1:
+            logger.info("memory has entry %s %s %s", func.uri, self.uri, objects[0])
+            r = URIValue(uri=objects[0])
+            logger.info("loaded from cache %s", r)
+            
+        elif len(objects) == 0:        
+            logger.info("can not load from cache %s %s ?", func.uri, self.uri)            
+
+            logger.info("will run %s", func)
+            lv = super().__call__(func)
+            r = URIValue(value=lv.value, provenance=lv.provenance)
+
+            self.memory_graph.add((func.uri, self.uri, r.uri))
+
+            self.save_cache()
+            
         
         return r
 
@@ -72,11 +102,11 @@ class LocalURIExecutor(LocalExecutor):
 
 
 
-class LocalCachingURIExecutor(LocalCachingExecutor):
-    output_value_class=URIValue
+# class LocalCachingURIExecutor(LocalCachingExecutor):
+#     output_value_class=URIValue
 
-    def __call__(self, func: LocalPythonFunction) -> URIValue:
-        return super().__call__(func)
+#     def __call__(self, func: LocalPythonFunction) -> URIValue:
+#         return super().__call__(func)
 
 
     

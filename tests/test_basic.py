@@ -1,7 +1,9 @@
+import time
 import pytest
+import rdflib
 
 from odafunction import LocalPythonFunction, LocalValue
-from odafunction.executors import LocalExecutor, AnyExecutor, default_execute_to_value
+from odafunction.executors import LocalExecutor, AnyExecutor, LocalURICachingExecutor, default_execute_to_value
 from odafunction.catalogviews import FunctionCatalogKeyedLocalValuedAttrs
 from odafunction.func.urifunc import URIPythonFunction, TransformURIFunction, URIipynbFunction, URIValue
 
@@ -105,7 +107,7 @@ def test_dumps():
 
     v = LocalValue(123)
 
-    assert v.dumps() == '{"class": "LocalValue", "value": 123}'
+    assert v.dumps() == '{"class": "LocalValue", "provenance": null, "value": 123}'
 
     assert LocalValue.from_s(v.dumps()).value == 123
 
@@ -122,7 +124,7 @@ def test_uri_modifiers():
 
 
 def test_ipynb():
-    f = URIipynbFunction("ipynb+file://tests/test_data/func.ipynb")
+    f = URIipynbFunction.from_generic_uri("ipynb+file://tests/test_data/func.ipynb")
     
     print("f:", f)
 
@@ -132,8 +134,7 @@ def test_ipynb():
     v = default_execute_to_value(f(), cached=True)
     print("v:", v)
 
-    assert v['y'] == 2
-    # assert default_execute_to_local_value() == 6
+    assert v['output_values']['y'] == 2
     
 
 
@@ -157,3 +158,51 @@ def test_urivalue_from_func():
 
 
     
+def test_caching_uri():
+    f_add = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
+
+    ex = LocalURICachingExecutor()
+    v = ex(f_add(1, 2, 3)).value    
+    
+    print("v:", v)
+
+    assert len(ex.memory_graph) == 2
+    
+
+
+def test_uri_provenance():
+    f_add = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
+    assert f_add.uri == rdflib.URIRef("file://tests/test_data/filewithfunc.py::examplefunc")
+
+    f = f_add(1,2,3)
+
+    assert f.uri == rdflib.URIRef("file://urivalue//9738a687/tests/test_data/filewithfunc/examplefunc")
+
+
+def test_uri_revisions(caplog):
+    f = URIipynbFunction("ipynb+file://tests/test_data/func.ipynb@oda_version=v1")
+    assert f.revision == "oda_version=v1"
+
+    # f = URIipynbFunction("ipynb+file://tests/test_data/func.ipynb@revision=master,version=v1,timestamp=11111")
+    
+    assert URIipynbFunction.from_generic_uri("ipynb+file://tests/test_data/func.ipynb").uri == rdflib.URIRef("ipynb+file://tests/test_data/func.ipynb@oda_version=v1")
+
+    ex = LocalURICachingExecutor()
+    ex.memory_graph = rdflib.Graph()
+    
+    t0 = int(time.time())
+    v = ex(f(input_x=t0)).value
+
+    print("v:", v)
+
+    assert 'loaded from cache' not in caplog.text
+    
+    assert v['output_values']['y'] == t0 + 1
+
+    v = ex(f(input_x=t0)).value
+
+    assert 'loaded from cache' in caplog.text
+
+    assert len(ex.memory_graph) == 1
+
+    print(ex.memory_graph.serialize(format='turtle'))

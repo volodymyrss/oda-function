@@ -15,6 +15,10 @@ rdf_prefix = "<http://odahub.io/ontology/odafunction#>"
         
 
 class Function:
+    """
+    function can be partially applied tracking provenance
+    """
+
     cached = False
 
     def __init__(self, provenance=None) -> None:
@@ -26,7 +30,8 @@ class Function:
 
     # this is not call but argument substitution. only nullary functions can be executed by the executor
     def __call__(self, *args: Any, **kwds: Any):
-        pass    
+        logger.info("Function.__call__: %s, %s", args, kwds)
+        return Function(provenance=[('partial', ('args', args), ('kwargs', kwds), (self, self.provenance))])
 
     @property
     def signature(self) -> inspect.Signature:
@@ -35,7 +40,7 @@ class Function:
     def __repr__(self) -> str:
         try:
             sig = self.signature
-        except NotImplementedError:
+        except (NotImplementedError, TypeError):
             sig = None
 
         r = f"[{self.__class__.__name__}]"
@@ -62,8 +67,8 @@ class FunctionCatalog:
 class Executor:
     # executor transforms nullary function to another nullary function
     # typically, execution transforms "data" to other "data", but both of these "data" can only be fetched with a request (i.e. another nullary function)
-    def __call__(self, func: Function, result_type: type) -> Function:
-        return func
+    def __call__(self, func: Function, result_type: type) -> Function:        
+        return Function(provenance=[('execute', self, func, func.provenance)])
 
     def note_execution(self, func, r):
         logger.info("execution derives equivalence: \n   %s\n   =(%s)=\n   %s", func, self, r)
@@ -88,9 +93,12 @@ class LocalPythonFunction(Function):
         return inspect.signature(self.local_python_function)    
 
     def __call__(self, *args: Any, **kwds: Any):
-        ba = self.signature.bind(*args, **kwds)        
-        provenance = [('partial', self, args, kwds)] + (self.provenance or [])
+        logger.info("LocalPythonFunction.__call__ %s, %s", args, kwds)
 
+        ba = self.signature.bind(*args, **kwds)        
+
+        F = Function.__call__(self, *args, **kwds)
+        
         def f():
             # TODO: these assumptions about executor are not universal
             from .executors import default_execute_to_value
@@ -98,7 +106,7 @@ class LocalPythonFunction(Function):
             kwargs = {k: default_execute_to_value(v) for k, v in ba.kwargs.items()}
             return self.local_python_function(*args, **kwargs)
 
-        return LocalPythonFunction(f, provenance=provenance)
+        return LocalPythonFunction(f, provenance=F.provenance)
 
 
 class LocalValue(Function):
@@ -119,7 +127,7 @@ class LocalValue(Function):
 
     @property
     def constructor_args(self):
-        return {'value': self.value}
+        return {'value': self.value, 'provenance': self.provenance}
 
 
     def dumps(self):
