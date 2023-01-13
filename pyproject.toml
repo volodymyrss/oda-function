@@ -6,6 +6,7 @@ authors = ["Volodymyr Savchenko <contact@volodymyrsavchenko.com>"]
 
 [tool.poetry.dependencies]
 python = "^3.9"
+rdflib = "*"
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"

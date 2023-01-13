@@ -1,12 +1,25 @@
 import click
 import logging
 
+from rich.logging import RichHandler
+from rich.highlighter import RegexHighlighter, NullHighlighter
+
 from .utils import repr_trim
 
 from . import logs
 from .executors import default_execute_to_value
 from .func.urifunc import URIFunction, URIValue, LocalValue
 
+class MyRegexHighlighter(RegexHighlighter):
+    base_style = ""
+    highlights = [
+            r"(?P<dim>\[.*\])",
+            r"(?P<dim>\(.*\))",
+            r"(?P<red>\*.*?\*)"
+        ]
+
+    
+    
 
 @click.group()
 @click.option('-v', is_flag=True)
@@ -20,10 +33,17 @@ def main(v, vv, logspec):
     else:
         level = 'WARNING'
     
-    logging.basicConfig(level=level)
+    logging.basicConfig(
+        level=level, 
+        datefmt="[%X]",
+        force=True,
+        format="%(name)30s %(levelname)8s %(message)s"
+    )
     
-    if logspec is not None:
-        logs.app_logging.level_by_logger = dict([i.split(":", 1) for i in logspec.split(",")])        
+    logging.getLogger().info("test info")
+    
+    if logspec is not None:        
+        logs.app_logging.parse_logspec(logspec)
 
     logs.app_logging.setup()
 

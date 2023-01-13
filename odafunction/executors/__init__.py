@@ -44,15 +44,25 @@ class LocalURICachingExecutor(LocalExecutor):
     def uri(self):
         return rdflib.URIRef(f"https://odahub.io/ontology#{self.__class__.__name__}")
 
-    def __init__(self) -> None:
+    def __init__(self, memory_graph_path=None) -> None:
         super().__init__()
+
+        if memory_graph_path is not None:
+            self.memory_graph_path = memory_graph_path
 
         self.load_cache()
 
     
     @property
     def memory_graph_path(self):
-        return pathlib.Path(os.environ['HOME']) / f".cache/odafunction/{self.__class__.__name__}-memory-graph.ttl"
+        if not hasattr(self, '_memory_graph_path'):
+            self._memory_graph_path = pathlib.Path(os.environ['HOME']) / f".cache/odafunction/{self.__class__.__name__}-memory-graph.ttl"
+
+        return self._memory_graph_path
+
+    @memory_graph_path.setter
+    def memory_graph_path(self, value):
+        self._memory_graph_path = pathlib.Path(value)
 
 
     def load_cache(self):
@@ -102,14 +112,6 @@ class LocalURIExecutor(LocalExecutor):
 
 
 
-# class LocalCachingURIExecutor(LocalCachingExecutor):
-#     output_value_class=URIValue
-
-#     def __call__(self, func: LocalPythonFunction) -> URIValue:
-#         return super().__call__(func)
-
-
-    
 class AnyExecutor(Executor):
 
     def __init__(self, executor_selector=None) -> None:

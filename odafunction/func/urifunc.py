@@ -3,6 +3,7 @@
 # 
 
 import hashlib
+import inspect
 import os
 import rdflib
 import importlib.util
@@ -85,7 +86,7 @@ class URIFunction(Function):
                 # TODO: not only first!
                 return cls(uri=uri)
             except RuntimeError as e:
-                logger.info("can not parse %s as %s", uri, cls)
+                logger.info("can not parse %s as %s due to %s", uri, cls, repr(e))
         
         raise RuntimeError(f"unable to parse URI {uri}")
 
@@ -116,7 +117,7 @@ def codify(p):
 def uri_segments_from_provenance(p):
     segments = []
 
-    logger.info(" \033[32m*prov:>>*\033[0m %s", p)
+    logger.info(" [red]prov:>>[/] %s", p)
         
     
     if p is None:
@@ -137,7 +138,7 @@ def uri_segments_from_provenance(p):
         raise NotImplementedError
 
 
-    logger.info(" \033[31m*segment:>>*\033[0m %s", segments)
+    logger.info(" [r]segment:[/] %s", segments)
 
     return segments
 
@@ -196,7 +197,7 @@ class URIFileFunction(URIFunction):
 
 
     def write_to_uri(self, value):
-        logger.warning("this function has no persistent representation")
+        logger.warning("asked to [red]write_to_uri[/] [b]%s[/] but this function has no persistent representation", self)
         
 
     def load_func(self):        
@@ -278,10 +279,17 @@ class URIipynbFunction(URIPythonFunction):
         G = rdflib.Graph()
         G.parse(data=nba.extra_ttl)        
 
-        v = list(G.objects(nba.nb_uri, rdflib.URIRef("https://odahub.io/ontology#version")))
+        p_version = rdflib.URIRef("http://odahub.io/ontology#version")
+
+        logger.debug('nba.extra_ttl for %s:\n %s', nba.nb_uri, nba.extra_ttl)
+
+        v = list(G.objects(nba.nb_uri, p_version))
 
         if len(v) == 1:
             self.version = v[0]
+            logger.debug("discovered version %s", self.version)
+        elif len(v) > 1:
+            raise NotImplementedError(f"discovered several notebook versions: {v}")
         else:
             self.version = None
             
@@ -290,7 +298,9 @@ class URIipynbFunction(URIPythonFunction):
     def load_func_from_local_file(self, path):
         nba = NotebookAdapter(path)
         
-        logger.info("parameter definitions: %s", nba.extract_parameters())
+        self.parameters = nba.extract_parameters()
+
+        logger.info("parameter definitions: %s", self.parameters)
         logger.info("output definitions: %s", nba.extract_output_declarations())        
         logger.info("function spot uri:\n %s", nba.nb_uri)
         logger.info("extra_ttl:\n %s", nba.extra_ttl)
@@ -298,11 +308,7 @@ class URIipynbFunction(URIPythonFunction):
         self.nba_to_oda_version(nba)
         logger.info("discovered function version %s", self.version)
 
-        def local_python_function():
-            # TODO!
-            args = []
-            kwargs = {}
-
+        def local_python_function(*args, **kwargs):            
             if len(args) > 0:
                 raise NotImplementedError(f"ipynb function can not consume positional args: {args}")
 
@@ -322,6 +328,12 @@ class URIipynbFunction(URIPythonFunction):
 
         self.local_python_function = local_python_function
 
+
+    @property
+    def signature(self):
+        return inspect.Signature(
+            parameters=[inspect.Parameter(P['name'], kind=inspect.Parameter.KEYWORD_ONLY, default=P['value']) for p, P in self.parameters.items()]
+        )
 
 class TransformURIFunction(LocalPythonFunction):
     def __init__(self, provenance=None) -> None:
