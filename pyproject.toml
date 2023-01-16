@@ -7,6 +7,8 @@ authors = ["Volodymyr Savchenko <contact@volodymyrsavchenko.com>"]
 [tool.poetry.dependencies]
 python = "^3.9"
 rdflib = "*"
+logging_tree = "*"
+nb2workflow = {version = "*", extras = ["rdf", "service"]}
 
 [tool.poetry.dev-dependencies]
 pytest = "^5.2"
