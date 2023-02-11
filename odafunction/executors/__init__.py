@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 # provenance derives in two ways: partially applying functions, and executing them (TODO: it's basically the same)
 
+
 class LocalExecutor(Executor):
     output_value_class=LocalValue
 

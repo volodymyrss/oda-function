@@ -12,6 +12,7 @@ from pathlib import Path
 import tempfile
 from typing import Any
 from nb2workflow.nbadapter import NotebookAdapter
+from nb2workflow.workflows import serialize_workflow_exception
 from .. import LocalPythonFunction, Function, LocalValue, Executor
 from ..utils import iterate_subclasses, repr_trim
 
@@ -313,17 +314,22 @@ class URIipynbFunction(URIPythonFunction):
                 raise NotImplementedError(f"ipynb function can not consume positional args: {args}")
 
             nba = NotebookAdapter(path)
+            nba.limit_output_attachment_file = 1024*1024
             print("nba", nba)
-            nba.execute(kwargs, inplace=False)
+            exceptions = nba.execute(kwargs, inplace=False)
             # nba.execute({}, inplace=getattr(self, 'inplace', False))
             output = nba.extract_output()
             with open(nba.output_notebook_fn) as f:
                 output_nb = json.load(f)
 
+            if exceptions != []:
+                raise RuntimeError(list(map(serialize_workflow_exception, exceptions)))
+
             nba.remove_tmpdir()
             return {
                 'output_nb': output_nb,
-                'output_values': output
+                'output_values': output,
+                # 'exceptions': list(map(serialize_workflow_exception, exceptions))
             }
 
         self.local_python_function = local_python_function

@@ -1,4 +1,5 @@
 import inspect
+import json
 import tempfile
 import time
 import pytest
@@ -159,7 +160,25 @@ def test_urivalue_from_func():
     print("v:", v)
     
 
+def test_uri_failing():
+    f = URIipynbFunction.from_generic_uri("ipynb+file://tests/test_data/func.ipynb")
 
+    assert f.uri == rdflib.URIRef("ipynb+file://tests/test_data/func.ipynb@oda_version=v1")
+    
+    v = default_execute_to_value(f(input_x=10), cached=False)
+
+    #TODO: make possible to pick exceptions
+    print("v:", json.dumps(v, indent=4, sort_keys=True))
+    
+    try:
+        v = default_execute_to_value(f(input_x=100), cached=False)
+    except RuntimeError as e:
+        assert e.args != []
+    else:
+        assert False
+
+    
+    
     
 def test_caching_uri():
     f_add = URIPythonFunction("file://tests/test_data/filewithfunc.py::examplefunc")
