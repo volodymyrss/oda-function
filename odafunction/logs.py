@@ -29,6 +29,7 @@ class ODAFunctionFormatter(logging.Formatter):
 
     def format(self, record: logging.LogRecord) -> str:
         record.loglevelcolor = {
+            'ERROR': '\033[31;1m',
             'WARNING': '\033[31m',
             'INFO': '\033[32m',
             'DEBUG': '\033[35m',

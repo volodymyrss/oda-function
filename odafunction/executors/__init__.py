@@ -70,8 +70,14 @@ class LocalURICachingExecutor(LocalExecutor):
         self.memory_graph = rdflib.Graph()
 
         if self.memory_graph_path.exists():
-            self.memory_graph.parse(open(str(self.memory_graph_path)), format="turtle")
-            logger.info("loaded cache from %s; %s entries", self.memory_graph_path, len(list(self.memory_graph)))
+            try:
+                self.memory_graph.parse(open(str(self.memory_graph_path)), format="turtle")
+            except Exception as e:
+                logger.error("failed to load cache from %s", self.memory_graph_path)
+                traceback.print_exc()
+                raise
+            else:                            
+                logger.info("loaded cache from %s; %s entries", self.memory_graph_path, len(list(self.memory_graph)))
         else:
             logger.info("initialized empty cache")
 
