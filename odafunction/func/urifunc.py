@@ -148,7 +148,7 @@ def uri_from_provenance(p):
     segments = uri_segments_from_provenance(p)
 
     if not re.match(r"^((ipynb|py)\+)?file://.*$", segments[0]):
-        segments.insert(0, "file:///tmp/urivalue/")
+        segments.insert(0, f"file://{os.getenv('HOME')}/urivalue/")
 
     for i in range(1, len(segments)):
         segments[i] = re.sub(r"(ipynb|py\+)?(file|http|https)://", "", segments[i])
